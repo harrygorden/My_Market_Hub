@@ -2,7 +2,12 @@ components:
 - components:
   - layout_properties: {grid_position: 'FMDOIA,ORWCQR'}
     name: rich_text_1
-    properties: {align: center, content: Whale Watching, font_size: 40}
+    properties:
+      align: center
+      content: Whale Watching
+      font_size: 40
+      spacing:
+        padding: [null, 30, null, 30]
     type: RichText
   layout_properties: {grid_position: 'HGMZJJ,PBNPTA'}
   name: outlined_card_1
