@@ -1,4 +1,25 @@
 allow_embedding: false
+db_schema:
+  key_levels_es:
+    client: none
+    columns: []
+    server: full
+    title: Key_Levels_ES
+  newsletter_es:
+    client: none
+    columns: []
+    server: full
+    title: Newsletter_ES
+  newsletter_flow:
+    client: none
+    columns: []
+    server: full
+    title: Newsletter_Flow
+  vdlines:
+    client: none
+    columns: []
+    server: full
+    title: VDLines
 dependencies: []
 name: My Market Hub
 native_deps: null
