@@ -1,12 +1,26 @@
 allow_embedding: false
 dependencies: []
-name: M3 App 1
-package_name: M3_App_1
+name: My Market Hub
+native_deps: null
+package_name: My_Market_Hub
 renamed: true
 runtime_options:
   client_version: '3'
-  server_spec: {base: python310-minimal}
+  legacy_features: {__dict__: true, bootstrap3: true, class_names: true, root_container: true}
+  server_spec: {base: python310-standard}
   server_version: python3-sandbox
-  version: 2
-services: []
-startup_form: Form1
+  version: 3
+scheduled_tasks: []
+services:
+- client_config: {}
+  server_config: {auto_create_missing_columns: true}
+  source: /runtime/services/tables.yml
+- client_config: {}
+  server_config: {}
+  source: /runtime/services/anvil/secrets.yml
+- client_config: {}
+  server_config: {}
+  source: /runtime/services/google.yml
+startup: {module: Navigation, type: form}
+startup_form: null
+uplink_visible: true

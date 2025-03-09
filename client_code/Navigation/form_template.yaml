@@ -1,0 +1,48 @@
+components:
+- components: []
+  layout_properties: {slot: default}
+  name: content_panel
+  properties: {col_widths: '{}'}
+  type: ColumnPanel
+- layout_properties: {slot: nav-right}
+  name: navbar_links
+  properties: {}
+  type: FlowPanel
+- components:
+  - layout_properties: {grid_position: 'TSHVWK,LAJJCG'}
+    name: button_1
+    properties: {text: Home}
+    type: Button
+  - layout_properties: {grid_position: 'GSDTLP,OQEJTM'}
+    name: button_2
+    properties: {text: ES Analysis}
+    type: Button
+  - layout_properties: {grid_position: 'TCCUUA,GAKQVB'}
+    name: button_3
+    properties: {text: Flow Analysis}
+    type: Button
+  - layout_properties: {grid_position: 'ZGVVJP,ZOUIKX'}
+    name: button_4
+    properties: {text: Whale Watching}
+    type: Button
+  - layout_properties: {grid_position: 'NRGYVL,XJYVUQ'}
+    name: button_5
+    properties: {text: Key Lines}
+    type: Button
+  layout_properties: {slot: left-nav}
+  name: column_panel_1
+  properties: {}
+  type: ColumnPanel
+- layout_properties: {slot: title}
+  name: Title
+  properties: {content: Harry's Market Monitoring Hub}
+  type: RichText
+container:
+  properties: {html: '@theme:standard-page.html'}
+  type: HtmlTemplate
+is_package: true
+slots:
+  content_slot:
+    index: 0
+    set_layout_properties: {grid_position: 'UPZZLX,OXEZKU'}
+    target: {name: content_panel, type: container}
