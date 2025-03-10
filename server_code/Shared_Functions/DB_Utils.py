@@ -48,7 +48,7 @@ def save_market_calendar_event(event_data):
         
         # Check if this event already exists in the table
         existing_event = app_tables.marketcalendar.get(
-            event_date=event_date,
+            date=event_date,
             event_time=event_data['time'],
             event_name=event_data['event'],
             currency=event_data['currency']
@@ -67,7 +67,7 @@ def save_market_calendar_event(event_data):
         else:
             # Create new event
             new_event = app_tables.marketcalendar.add_row(
-                event_date=event_date,
+                date=event_date,
                 event_time=event_data['time'],
                 event_name=event_data['event'],
                 currency=event_data['currency'],
@@ -124,7 +124,7 @@ def clear_market_calendar_events_for_date_range(start_date, end_date):
     try:
         # Find events in the date range
         events_to_delete = app_tables.marketcalendar.search(
-            q.between(app_tables.marketcalendar.event_date, start_date, end_date)
+            q.between(app_tables.marketcalendar.date, start_date, end_date)
         )
         
         # Count events
@@ -184,14 +184,14 @@ def get_market_calendar_events_for_date_range(start_date, end_date):
     try:
         # Find events in the date range
         events = app_tables.marketcalendar.search(
-            q.between(app_tables.marketcalendar.event_date, start_date, end_date)
+            q.between(app_tables.marketcalendar.date, start_date, end_date)
         )
         
         # Convert to list of dictionaries for easier handling
         event_list = []
         for event in events:
             event_dict = {
-                'date': event['event_date'].strftime('%Y-%m-%d'),
+                'date': event['date'].strftime('%Y-%m-%d'),
                 'time': event['event_time'],
                 'event': event['event_name'],
                 'currency': event['currency'],
