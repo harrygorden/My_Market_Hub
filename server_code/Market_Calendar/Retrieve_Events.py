@@ -26,8 +26,16 @@ def _retrieve_market_calendar_events_from_url(url, save_to_db=True, clear_existi
         # Get the calendar page
         response = anvil.http.request(url, json=False)
         
+        # Handle StreamingMedia object if that's what we received
+        if hasattr(response, 'get_bytes'):
+            response_text = response.get_bytes().decode('utf-8')
+            print("Converted StreamingMedia to text")
+        else:
+            response_text = response
+            print("Response was already text")
+        
         # Parse the HTML content
-        soup = BeautifulSoup(response, 'html.parser')
+        soup = BeautifulSoup(response_text, 'html.parser')
         
         # Find the calendar table
         table = soup.find('table', class_='calendar__table')
