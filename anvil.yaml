@@ -5,6 +5,11 @@ db_schema:
     columns: []
     server: full
     title: Key_Levels_ES
+  marketcalendar:
+    client: none
+    columns: []
+    server: full
+    title: MarketCalendar
   newsletter_es:
     client: none
     columns: []
@@ -32,6 +37,28 @@ runtime_options:
   server_version: python3-sandbox
   version: 3
 scheduled_tasks: []
+secrets:
+  ES_Newsletter_Sender:
+    type: secret
+    value: {CTIRKRBBLLHEYAK3: sqbmyaXjefcjcw1/lkGhVnLGVQsc6N3PDzbuR8JPKUU66lHMNQBBoAj/xgrTn8yCMeQ8KILl2ykek7PkIKn31gaxyaT4fgz+f5aMRn+/oelT0bNhTmchnmTGzbD/X3KyLKcgH7vzIrjhKB8GoJqnVyoZBDLDoAL2wNI=}
+  Flow_Newsletter_Sender:
+    type: secret
+    value: {CTIRKRBBLLHEYAK3: /l+rRViIxhbGwPlSje7ajoYA58rVngpP+Pp/rz9NYONnuewSVwcRIZmycVIR7taQlenzNjyqldvG855tPhZGFakKzQepI7jAbHyGWN06/D3MPS2u2rreSuiAlnC9PzQSenAn6Er6QoqhjO7dLVmOGNTPTw==}
+  google_client_id:
+    type: secret
+    value: {CTIRKRBBLLHEYAK3: I1J2nLGPbSpOyqp2S8DhK0mpIXY3/STzX73kTXjYsxc7wYfj88rx2prV+LMtRG/cMRu7Aw0XKyhplhtOv6z4sBmI8uY4JUYenmqjtCpGWuM6Nz4SSZpSmF8mxYBrLBXUXCy/mzax03dqod7lmASCAqb/mfKGO0nms9nnSIG44l7Wer60jXCP8dqyorHdyiWA29oUtyaYTKr0rRGYV+zhzSZjMZwnsfg=}
+  google_client_secret:
+    type: secret
+    value: {CTIRKRBBLLHEYAK3: 7wgh8jxcC9nFuOVMLIBZCVFpXT88gDalyxtASx/IzilcocnBaUP+wIQMgvqBNPbHyF++EnL2vEdOUzs1H2DE6Q+qRUK7LRBIsAKCdLkfwCZHvxWb7IYf5o6n8qlLzX5pcjkyqkKvXxv0ccZQeaW3VjR2yWk2AKZJ//ObZYfoskXvcA==}
+  google_refresh_token:
+    type: secret
+    value: {CTIRKRBBLLHEYAK3: akOpPgcdW/OPIdLpELg0F+eprP0etCWJtzIUGsS3EI5rFK7r4aKl0wR2bEar6ga6oGmOwWyfTw8jWeVRQ3SfPnizFuV2vAdeRE2QXq4qs0isjV36mv0CB0iMdAHkywDqO4LhezKgkuCgMJ90aZIPHksMS6rfdjjgBlWdMlZQM32kAjPDB4wDrDNj1zr1tnFM1kGA2Tvz3aBP9zsQGnyemsUftUfq9h37ajiMIviYwopyrZU7ypOT+xplnSLO/rrmYGYhzi0b+Fo=}
+  recipient_bcc:
+    type: secret
+    value: {CTIRKRBBLLHEYAK3: VRUD7aADDjTie/B+E2pUoNTeze9H48EAlYoSUliIuEsA3g+Czc5hEFAl2fKVV+H2KFCcYveWsWuP6k97kelIjlCjT7UigbjlXcHs4EX7GNkZ/fBFoSlc1om1poHUuz8z36G/CoPvQjsb7LRFrEZy9DxmE6GUms4=}
+  recipient_email:
+    type: secret
+    value: {CTIRKRBBLLHEYAK3: snFrkiE6pVqUsGqRW09+3ftuSNbxTkxXXLnLBUvQpF3VP43fbxaZdwvcgfeW43Tp+SHXLmHy0D13KU+ZaVxwAccOGdxKmvC2TMD0JxNzyXuhouy3TeQKefMk+GzAxSO00jojfinpdkseWjX98YyKirVpyFs=}
 services:
 - client_config: {}
   server_config: {auto_create_missing_columns: true}

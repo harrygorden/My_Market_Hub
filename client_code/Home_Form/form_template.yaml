@@ -13,9 +13,14 @@ components:
         Until then, have a good day!
       font_size: 20
     type: RichText
-  layout_properties: {grid_position: 'BUKIIE,CNIBMO'}
+  layout_properties: {full_width_row: false, grid_position: 'BUKIIE,CNIBMO'}
   name: outlined_card_1
-  properties: {background: 'theme:Primary Container', role: outlined-card}
+  properties:
+    background: theme:Primary Container
+    col_spacing: huge
+    role: elevated-card
+    spacing:
+      padding: [null, 60, null, 60]
   type: ColumnPanel
 container:
   properties: {background: 'theme:Primary'}
