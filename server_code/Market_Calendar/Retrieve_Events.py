@@ -23,8 +23,8 @@ def _retrieve_market_calendar_events_from_url(url, save_to_db=True, clear_existi
     
     try:
         # Get the current date and time in Central Time
-        central_tz = pytz.timezone('US/Central')
-        now = datetime.datetime.now(central_tz)
+        chicago_tz = pytz.timezone('America/Chicago')
+        now = datetime.datetime.now(chicago_tz)
         
         # Fetch the ForexFactory calendar page
         print(f"Sending HTTP request to {url}")
@@ -47,6 +47,63 @@ def _retrieve_market_calendar_events_from_url(url, save_to_db=True, clear_existi
             response_text = response
             
         print(f"Response successfully processed")
+        
+        # Extract timezone information from the page
+        site_timezone_offset = None
+        site_timezone_name = None
+        
+        # Look for timezone information in the script tags
+        timezone_pattern = re.compile(r"timezone:\s*'([^']+)'")
+        timezone_name_pattern = re.compile(r"timezone_name:\s*'([^']+)'")
+        
+        # Find all script tags
+        script_tags = BeautifulSoup(response_text, 'html.parser').find_all('script')
+        
+        for script in script_tags:
+            if script.string:
+                # Search for timezone offset
+                tz_match = timezone_pattern.search(script.string)
+                if tz_match:
+                    site_timezone_offset = tz_match.group(1)
+                    print(f"Found site timezone offset: {site_timezone_offset}")
+                
+                # Search for timezone name
+                tz_name_match = timezone_name_pattern.search(script.string)
+                if tz_name_match:
+                    site_timezone_name = tz_name_match.group(1)
+                    print(f"Found site timezone name: {site_timezone_name}")
+                
+                # Break if we found both
+                if site_timezone_offset and site_timezone_name:
+                    break
+        
+        # If we couldn't find the timezone info, assume UTC
+        if not site_timezone_offset:
+            print("Could not find timezone information, assuming UTC")
+            site_timezone = pytz.UTC
+        else:
+            try:
+                # Try to use the timezone name if available
+                if site_timezone_name:
+                    try:
+                        site_timezone = pytz.timezone(site_timezone_name)
+                        print(f"Using timezone from name: {site_timezone_name}")
+                    except pytz.exceptions.UnknownTimeZoneError:
+                        # Fall back to offset if name is invalid
+                        hours_offset = int(site_timezone_offset)
+                        site_timezone = pytz.FixedOffset(hours_offset * 60)
+                        print(f"Using timezone from offset: {hours_offset} hours")
+                else:
+                    # Use the offset directly
+                    hours_offset = int(site_timezone_offset)
+                    site_timezone = pytz.FixedOffset(hours_offset * 60)
+                    print(f"Using timezone from offset: {hours_offset} hours")
+            except Exception as e:
+                print(f"Error parsing timezone information: {e}, falling back to UTC")
+                site_timezone = pytz.UTC
+        
+        print(f"Site timezone: {site_timezone}")
+        print(f"Target timezone (Chicago): {chicago_tz}")
         
         # Parse the HTML content
         soup = BeautifulSoup(response_text, 'html.parser')
@@ -84,20 +141,25 @@ def _retrieve_market_calendar_events_from_url(url, save_to_db=True, clear_existi
                         # Create a naive datetime object
                         parsed_date = datetime.datetime.strptime(date_with_year, "%a %b %d %Y")
                         
-                        # Make it timezone-aware with the same timezone as 'now'
-                        parsed_date = central_tz.localize(parsed_date)
+                        # Make it timezone-aware with the site's timezone
+                        parsed_date = site_timezone.localize(parsed_date)
+                        
+                        # Convert to Chicago time
+                        parsed_date_chicago = parsed_date.astimezone(chicago_tz)
                         
                         # Fix year if the parsed date is too far in the past (for December->January transition)
                         naive_now = now.replace(tzinfo=None)
-                        naive_parsed = parsed_date.replace(tzinfo=None)
+                        naive_parsed = parsed_date_chicago.replace(tzinfo=None)
                         if (naive_now - naive_parsed).days > 300:
-                            parsed_date = central_tz.localize(
+                            parsed_date = site_timezone.localize(
                                 datetime.datetime(now.year + 1, parsed_date.month, parsed_date.day, 
                                                 parsed_date.hour, parsed_date.minute, parsed_date.second)
                             )
+                            # Convert to Chicago time again
+                            parsed_date_chicago = parsed_date.astimezone(chicago_tz)
                         
-                        current_date = parsed_date.strftime("%Y-%m-%d")
-                        print(f"Successfully parsed date: {current_date}")
+                        current_date = parsed_date_chicago.strftime("%Y-%m-%d")
+                        print(f"Successfully parsed date: {current_date} (Chicago time)")
                     except Exception as e:
                         print(f"Error parsing date '{date_text}': {e}")
                         continue
@@ -117,6 +179,48 @@ def _retrieve_market_calendar_events_from_url(url, save_to_db=True, clear_existi
                     # Get the event time
                     time_cell = row.find('td', class_='calendar__cell calendar__time')
                     event_time = time_cell.text.strip() if time_cell else ''
+                    
+                    # Convert the time to Chicago time if it's a valid time
+                    if event_time and event_time != '' and ':' in event_time:
+                        try:
+                            # Parse the time string (format is like "8:30am")
+                            # Check if time has am/pm indicator
+                            time_pattern = re.compile(r'(\d+):(\d+)(am|pm)?', re.IGNORECASE)
+                            time_match = time_pattern.match(event_time)
+                            
+                            if time_match:
+                                hours = int(time_match.group(1))
+                                minutes = int(time_match.group(2))
+                                ampm = time_match.group(3)
+                                
+                                # Handle 12-hour format if am/pm is present
+                                if ampm:
+                                    if ampm.lower() == 'pm' and hours < 12:
+                                        hours += 12
+                                    elif ampm.lower() == 'am' and hours == 12:
+                                        hours = 0
+                                
+                                # Create a datetime object for the event time in the site's timezone
+                                # Use the parsed_date as the base to keep the same day
+                                event_datetime = datetime.datetime.combine(
+                                    parsed_date.date(),
+                                    datetime.time(hours, minutes, 0)
+                                )
+                                event_datetime = site_timezone.localize(event_datetime)
+                                
+                                # Convert to Chicago time
+                                event_datetime_chicago = event_datetime.astimezone(chicago_tz)
+                                
+                                # Format the time in Chicago timezone (to 12-hour format)
+                                event_time = event_datetime_chicago.strftime("%-I:%M%p").lower()
+                                
+                                # Adjust the date if the day changed during conversion
+                                if event_datetime_chicago.date() != parsed_date_chicago.date():
+                                    print(f"Date changed during time conversion: {parsed_date_chicago.date()} -> {event_datetime_chicago.date()}")
+                                    current_date = event_datetime_chicago.strftime("%Y-%m-%d")
+                        except Exception as e:
+                            print(f"Error converting time '{event_time}': {e}, keeping original time")
+                            # Keep the original time if conversion fails
                     
                     # Get the event name
                     event_cell = row.find('td', class_='calendar__cell calendar__event')

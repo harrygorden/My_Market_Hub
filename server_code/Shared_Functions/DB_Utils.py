@@ -12,6 +12,7 @@ import datetime
 #
 # To allow anvil.server.call() to call functions here, we mark
 # them with @anvil.server.callable.
+#
 # Here is an example - you can replace it with your own:
 #
 # @anvil.server.callable
@@ -55,11 +56,9 @@ def save_market_calendar_events(events, clear_existing=False):
         # Handle clear_existing option - remove existing events for the dates we're importing
         if clear_existing and event_dates:
             print(f"Clearing existing events for {len(event_dates)} dates")
-            # Convert string dates to datetime objects for comparison
-            date_objects = [datetime.datetime.strptime(date_str, "%Y-%m-%d").date() for date_str in event_dates]
             
             # Query existing rows for these dates and delete them
-            rows_to_delete = calendar_table.search(tables.order_by("date"), date=q.any_of(*date_objects))
+            rows_to_delete = calendar_table.search(date=q.any_of(*event_dates))
             delete_count = 0
             
             for row in rows_to_delete:
@@ -74,12 +73,7 @@ def save_market_calendar_events(events, clear_existing=False):
             print("Fetching existing events from marketcalendar table")
             for row in calendar_table.search():
                 # Create a unique key for each event based on date, time, and event name
-                if isinstance(row['date'], datetime.date):
-                    date_str = row['date'].strftime("%Y-%m-%d")
-                else:
-                    date_str = str(row['date'])
-                
-                key = f"{date_str}_{row['time']}_{row['event']}"
+                key = f"{row['date']}_{row['time']}_{row['event']}"
                 existing_events[key] = row
             
             print(f"Found {len(existing_events)} existing events in the table")
@@ -94,18 +88,8 @@ def save_market_calendar_events(events, clear_existing=False):
                     results["skipped"] += 1
                     continue
                 
-                # Convert date string to date object if needed
-                if isinstance(event['date'], str):
-                    try:
-                        event_date = datetime.datetime.strptime(event['date'], "%Y-%m-%d").date()
-                        event_for_db = event.copy()
-                        event_for_db['date'] = event_date
-                    except ValueError:
-                        print(f"Invalid date format in event: {event['date']}")
-                        results["skipped"] += 1
-                        continue
-                else:
-                    event_for_db = event.copy()
+                # No need to convert date string to date object - keep as string
+                event_for_db = event.copy()
                 
                 # Add default values for fields that might be missing
                 if 'time' not in event_for_db:
@@ -190,8 +174,8 @@ def clear_market_calendar_events(start_date=None, end_date=None):
     Clear market calendar events from the marketcalendar table.
     
     Args:
-        start_date (datetime.date, optional): Start date (inclusive) for events to clear. If None, no start date filter.
-        end_date (datetime.date, optional): End date (inclusive) for events to clear. If None, no end date filter.
+        start_date (str, optional): Start date (inclusive) for events to clear in YYYY-MM-DD format. If None, no start date filter.
+        end_date (str, optional): End date (inclusive) for events to clear in YYYY-MM-DD format. If None, no end date filter.
     
     Returns:
         int: Number of events deleted
@@ -238,8 +222,8 @@ def get_market_calendar_events(start_date=None, end_date=None, currencies=None):
     Get market calendar events from the marketcalendar table.
     
     Args:
-        start_date (datetime.date, optional): Start date (inclusive) for events to return. If None, no start date filter.
-        end_date (datetime.date, optional): End date (inclusive) for events to return. If None, no end date filter.
+        start_date (str, optional): Start date (inclusive) for events to return in YYYY-MM-DD format. If None, no start date filter.
+        end_date (str, optional): End date (inclusive) for events to return in YYYY-MM-DD format. If None, no end date filter.
         currencies (list, optional): List of currency codes to filter by. If None, all currencies are returned.
     
     Returns:
@@ -275,7 +259,7 @@ def get_market_calendar_events(start_date=None, end_date=None, currencies=None):
         events = []
         for row in rows:
             event = {
-                "date": row["date"].strftime("%Y-%m-%d") if isinstance(row["date"], datetime.date) else str(row["date"]),
+                "date": row["date"],
                 "time": row["time"],
                 "event": row["event"],
                 "currency": row["currency"],
