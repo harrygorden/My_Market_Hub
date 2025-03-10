@@ -5,189 +5,160 @@ import datetime
 import re
 import pytz
 from ..Shared_Functions import DB_Utils
+import calendar
 
 def _retrieve_market_calendar_events_from_url(url, save_to_db=True, clear_existing=False, filter_currency="USD"):
     """
-    Helper function to retrieve market calendar events from ForexFactory.com using a specific URL
-    This function does the actual scraping work and is called by the public-facing functions
+    Helper function to retrieve market calendar events from a given ForexFactory.com URL
     
     Args:
-        url (str): The ForexFactory calendar URL to scrape
+        url (str): The ForexFactory.com calendar URL to scrape
         save_to_db (bool, optional): Whether to save events to the database. Default is True.
         clear_existing (bool, optional): Whether to clear existing events for the same dates. Default is False.
         filter_currency (str, optional): Only return events for this currency. Default is "USD".
-        
+    
     Returns:
         list: A list of event dictionaries or False if an error occurred
     """
-    print(f"Starting ForexFactory calendar scraping from: {url}")
+    print(f"Retrieving market calendar events from {url}")
     
     try:
-        # Get the current date and time in Central Time
-        chicago_tz = pytz.timezone('America/Chicago')
-        now = datetime.datetime.now(chicago_tz)
-        
-        # Fetch the ForexFactory calendar page
-        print(f"Sending HTTP request to {url}")
-        
-        # Get the response and handle the StreamingMedia object properly
+        # Get the calendar page
         response = anvil.http.request(url, json=False)
         
-        # Check if response exists
-        if not response:
-            print("Failed to retrieve the calendar page")
-            return False
-        
-        print("Successfully retrieved calendar page")
-        
-        # Convert the response to a string if it's a streaming object
-        try:
-            response_text = response.get_bytes().decode('utf-8')
-        except AttributeError:
-            # If it's already a string, use it as is
-            response_text = response
-            
-        print(f"Response successfully processed")
-        
-        # Extract timezone information from the page
-        site_timezone_offset = None
-        site_timezone_name = None
-        
-        # Look for timezone information in the script tags
-        timezone_pattern = re.compile(r"timezone:\s*'([^']+)'")
-        timezone_name_pattern = re.compile(r"timezone_name:\s*'([^']+)'")
-        
-        # Find all script tags
-        script_tags = BeautifulSoup(response_text, 'html.parser').find_all('script')
-        
-        for script in script_tags:
-            if script.string:
-                # Search for timezone offset
-                tz_match = timezone_pattern.search(script.string)
-                if tz_match:
-                    site_timezone_offset = tz_match.group(1)
-                    print(f"Found site timezone offset: {site_timezone_offset}")
-                
-                # Search for timezone name
-                tz_name_match = timezone_name_pattern.search(script.string)
-                if tz_name_match:
-                    site_timezone_name = tz_name_match.group(1)
-                    print(f"Found site timezone name: {site_timezone_name}")
-                
-                # Break if we found both
-                if site_timezone_offset and site_timezone_name:
-                    break
-        
-        # If we couldn't find the timezone info, assume UTC
-        if not site_timezone_offset:
-            print("Could not find timezone information, assuming UTC")
-            site_timezone = pytz.UTC
-        else:
-            try:
-                # Try to use the timezone name if available
-                if site_timezone_name:
-                    try:
-                        site_timezone = pytz.timezone(site_timezone_name)
-                        print(f"Using timezone from name: {site_timezone_name}")
-                    except pytz.exceptions.UnknownTimeZoneError:
-                        # Fall back to offset if name is invalid
-                        hours_offset = int(site_timezone_offset)
-                        site_timezone = pytz.FixedOffset(hours_offset * 60)
-                        print(f"Using timezone from offset: {hours_offset} hours")
-                else:
-                    # Use the offset directly
-                    hours_offset = int(site_timezone_offset)
-                    site_timezone = pytz.FixedOffset(hours_offset * 60)
-                    print(f"Using timezone from offset: {hours_offset} hours")
-            except Exception as e:
-                print(f"Error parsing timezone information: {e}, falling back to UTC")
-                site_timezone = pytz.UTC
-        
-        print(f"Site timezone: {site_timezone}")
-        print(f"Target timezone (Chicago): {chicago_tz}")
-        
         # Parse the HTML content
-        soup = BeautifulSoup(response_text, 'html.parser')
+        soup = BeautifulSoup(response, 'html.parser')
         
         # Find the calendar table
-        calendar_table = soup.find('table', class_='calendar__table')
+        table = soup.find('table', class_='calendar__table')
         
-        if not calendar_table:
-            print("Calendar table not found in the page")
-            print(f"First 500 chars of response: {response_text[:500]}")
+        if not table:
+            print("No calendar table found on the page. The page structure may have changed.")
             return False
         
-        print("Found calendar table in the HTML")
+        # Find all rows in the table
+        rows = table.find_all('tr')
         
-        # Extract events from the table
+        # Initialize variables
         events = []
         current_date = None
-        last_time = None  # Track the last seen time to fill in missing times
+        last_time = None
         
-        # Find all table rows
-        rows = calendar_table.find_all('tr')
-        print(f"Found {len(rows)} rows in the calendar table")
+        # Define timezone for Chicago (America/Chicago)
+        chicago_tz = pytz.timezone('America/Chicago')
         
+        # Initialize site timezone (will be determined dynamically from the page if possible)
+        site_timezone = pytz.timezone('GMT')  # Default to GMT if we can't determine it
+        
+        # Try to determine the site timezone from the page
+        timezone_element = soup.find('div', class_='calendar__timezone')
+        if timezone_element:
+            timezone_text = timezone_element.text.strip()
+            print(f"Found timezone information: {timezone_text}")
+            
+            # Extract timezone information
+            # Example format: "Timezone: GMT (+00:00)"
+            timezone_pattern = re.search(r'GMT\s*\(([+-])(\d{2}):(\d{2})\)', timezone_text)
+            if timezone_pattern:
+                # Extract the timezone offset
+                sign = timezone_pattern.group(1)
+                hours = int(timezone_pattern.group(2))
+                minutes = int(timezone_pattern.group(3))
+                
+                # Determine the total offset in hours
+                offset = hours + (minutes / 60)
+                if sign == '-':
+                    offset = -offset
+                
+                # Try to find a matching timezone
+                # Note: This is approximate and may not account for DST changes
+                for tz_name in pytz.all_timezones:
+                    tz = pytz.timezone(tz_name)
+                    now = datetime.datetime.now(tz)
+                    tz_offset = now.utcoffset().total_seconds() / 3600
+                    
+                    if abs(tz_offset - offset) < 0.01 and 'GMT' in tz_name:
+                        site_timezone = tz
+                        print(f"Matched site timezone to: {tz_name}")
+                        break
+            
+            # Fallback if we couldn't match a timezone
+            if site_timezone == pytz.timezone('GMT'):
+                print("Could not determine exact timezone, using GMT as fallback")
+        
+        # Process each row
         for row in rows:
             # Check if this is a date row
             date_cell = row.find('td', class_='calendar__cell calendar__date')
+            
             if date_cell:
-                # Extract and format the date
-                date_span = date_cell.find('span')
-                if date_span:
-                    date_text = date_span.text.strip()
-                    # Parse date (format is like "Mon Mar 4")
-                    try:
-                        # Add current year since it's not in the date string
-                        date_with_year = f"{date_text} {now.year}"
-                        # Create a naive datetime object
-                        parsed_date = datetime.datetime.strptime(date_with_year, "%a %b %d %Y")
+                # Extract the date
+                date_text = date_cell.text.strip()
+                month_year = date_cell.find('span', class_='date').text.strip()
+                
+                # The date format can vary but is typically like "Mon Nov 13"
+                # We need to parse this and add the year
+                date_match = re.match(r'([A-Za-z]+)\s+([A-Za-z]+)\s+(\d+)', date_text)
+                if date_match:
+                    day_name = date_match.group(1)  # Not used, but extracted for completeness
+                    month_name = date_match.group(2)
+                    day = int(date_match.group(3))
+                    
+                    # Parse the month and year
+                    month_match = re.match(r'([A-Za-z]+)\s+\'?(\d+)', month_year)
+                    if month_match:
+                        month_abbr = month_match.group(1)
+                        year_abbr = month_match.group(2)
                         
-                        # Make it timezone-aware with the site's timezone
+                        # Handle two-digit years
+                        if len(year_abbr) == 2:
+                            year = 2000 + int(year_abbr)
+                        else:
+                            year = int(year_abbr)
+                        
+                        # Convert month name to number (1-12)
+                        month = list(calendar.month_abbr).index(month_abbr[:3].title())
+                        
+                        # Create the date string in ISO format
+                        current_date = f"{year}-{month:02d}-{day:02d}"
+                        
+                        # For timezone conversion, create a datetime object in the site's timezone
+                        parsed_date = datetime.datetime(year, month, day, 0, 0, 0)
                         parsed_date = site_timezone.localize(parsed_date)
                         
                         # Convert to Chicago time
                         parsed_date_chicago = parsed_date.astimezone(chicago_tz)
                         
-                        # Fix year if the parsed date is too far in the past (for December->January transition)
-                        naive_now = now.replace(tzinfo=None)
-                        naive_parsed = parsed_date_chicago.replace(tzinfo=None)
-                        if (naive_now - naive_parsed).days > 300:
-                            parsed_date = site_timezone.localize(
-                                datetime.datetime(now.year + 1, parsed_date.month, parsed_date.day, 
-                                                parsed_date.hour, parsed_date.minute, parsed_date.second)
-                            )
-                            # Convert to Chicago time again
-                            parsed_date_chicago = parsed_date.astimezone(chicago_tz)
+                        # Check if the day changed due to timezone difference
+                        if parsed_date_chicago.date() != parsed_date.date():
+                            print(f"Date changed due to timezone difference: {parsed_date.date()} -> {parsed_date_chicago.date()}")
+                            current_date = parsed_date_chicago.strftime("%Y-%m-%d")
                         
-                        current_date = parsed_date_chicago.strftime("%Y-%m-%d")
-                        print(f"Successfully parsed date: {current_date} (Chicago time)")
-                    except Exception as e:
-                        print(f"Error parsing date '{date_text}': {e}")
-                        continue
+                        print(f"Processing events for {current_date}")
+                    else:
+                        print(f"Could not parse month and year from '{month_year}'")
+                        current_date = None
+                else:
+                    print(f"Could not parse date from '{date_text}'")
+                    current_date = None
             
             # Check if this is an event row
-            if 'calendar__row' in row.get('class', []):
-                # Skip if we don't have a date yet
-                if not current_date:
+            if row.has_attr('class') and 'calendar__row' in row['class'] and current_date:
+                # Get the currency
+                currency_cell = row.find('td', class_='calendar__cell calendar__currency')
+                currency = currency_cell.text.strip() if currency_cell else ''
+                
+                # Skip non-matching currencies
+                if filter_currency and currency != filter_currency:
                     continue
                 
-                # Extract the event data
                 try:
-                    # Get the currency
-                    currency_cell = row.find('td', class_='calendar__cell calendar__currency')
-                    currency = currency_cell.text.strip() if currency_cell else ''
-                    
-                    # Skip this event if it's not for the filtered currency
-                    if filter_currency and currency != filter_currency:
-                        continue
-                    
                     # Get the event time
                     time_cell = row.find('td', class_='calendar__cell calendar__time')
                     event_time = time_cell.text.strip() if time_cell else ''
                     
-                    # Important: Do NOT attempt to fill empty times during scraping
-                    # We'll handle this properly during post-processing
+                    # Save original time for debugging
+                    original_time = event_time
                     
                     # Convert the time to Chicago time if it's a valid time
                     if event_time and event_time != '' and ':' in event_time:
@@ -223,13 +194,12 @@ def _retrieve_market_calendar_events_from_url(url, save_to_db=True, clear_existi
                                 # Format the time in Chicago timezone (to 12-hour format)
                                 event_time = event_datetime_chicago.strftime("%-I:%M%p").lower()
                                 
-                                # Store this time for future events with missing times
-                                last_time = event_time
-                                
                                 # Adjust the date if the day changed during conversion
                                 if event_datetime_chicago.date() != parsed_date_chicago.date():
                                     print(f"Date changed during time conversion: {parsed_date_chicago.date()} -> {event_datetime_chicago.date()}")
                                     current_date = event_datetime_chicago.strftime("%Y-%m-%d")
+                                    
+                                print(f"Converted time '{original_time}' to '{event_time}' (Chicago time)")
                         except Exception as e:
                             print(f"Error converting time '{event_time}': {e}, keeping original time")
                             # Keep the original time if conversion fails
@@ -238,27 +208,30 @@ def _retrieve_market_calendar_events_from_url(url, save_to_db=True, clear_existi
                     event_cell = row.find('td', class_='calendar__cell calendar__event')
                     event_name = event_cell.text.strip() if event_cell else ''
                     
-                    # Get impact level
+                    # Get the impact
                     impact_cell = row.find('td', class_='calendar__cell calendar__impact')
-                    impact = ''
+                    impact = None
                     if impact_cell:
                         impact_span = impact_cell.find('span')
-                        if impact_span and 'impact' in impact_span.get('class', [])[0]:
-                            impact_class = impact_span.get('class', [])[0]
-                            # Extract impact level (high, medium, low)
-                            impact = re.search(r'impact--(.*)', impact_class)
-                            if impact:
-                                impact = impact.group(1)
+                        if impact_span and impact_span.has_attr('class'):
+                            impact_class = impact_span['class'][0]
+                            # Extract impact level from class name (e.g., "sentiment--bull-hi" -> "high")
+                            if 'bull-hi' in impact_class:
+                                impact = 'high'
+                            elif 'bull-md' in impact_class:
+                                impact = 'medium'
+                            elif 'bull-lo' in impact_class:
+                                impact = 'low'
                     
-                    # Get forecast value
+                    # Get the forecast value
                     forecast_cell = row.find('td', class_='calendar__cell calendar__forecast')
                     forecast = forecast_cell.text.strip() if forecast_cell else ''
                     
-                    # Get previous value
+                    # Get the previous value
                     previous_cell = row.find('td', class_='calendar__cell calendar__previous')
                     previous = previous_cell.text.strip() if previous_cell else ''
                     
-                    # Construct event data
+                    # Add the event to our list
                     event_data = {
                         'date': current_date,
                         'time': event_time,
@@ -271,16 +244,8 @@ def _retrieve_market_calendar_events_from_url(url, save_to_db=True, clear_existi
                     
                     events.append(event_data)
                     
-                    # Print the event
-                    print(f"Event: {current_date} {event_time} | {currency} | {event_name} | Impact: {impact} | Forecast: {forecast} | Previous: {previous}")
-                    
                 except Exception as e:
                     print(f"Error processing event row: {e}")
-                    continue
-        
-        print(f"Extracted {len(events)} total events from {url}")
-        if filter_currency:
-            print(f"Filtered to {len(events)} {filter_currency} events")
         
         # Save events to the database if requested
         if save_to_db and events:
@@ -292,10 +257,11 @@ def _retrieve_market_calendar_events_from_url(url, save_to_db=True, clear_existi
             else:
                 print(f"Database save results: {save_results['added']} added, {save_results['updated']} updated, {save_results['skipped']} skipped")
         
+        # Return the list of events
         return events
-        
+    
     except Exception as e:
-        print(f"Error in _retrieve_market_calendar_events_from_url: {e}")
+        print(f"Error retrieving market calendar events: {e}")
         return False
 
 @anvil.server.background_task
@@ -316,16 +282,27 @@ def retrieve_market_calendar_events_this_month(save_to_db=True, clear_existing=F
     This function can be called via uplink for testing
     """
     url = "https://www.forexfactory.com/calendar?month=this"
-    events = _retrieve_market_calendar_events_from_url(url, save_to_db=save_to_db, clear_existing=clear_existing, filter_currency=filter_currency)
     
-    # Post-processing to fill in missing times
-    if events:
-        events = _fill_missing_times(events)
-        print(f"Successfully retrieved {len(events)} events for this month")
-    else:
+    # Step 1: Get raw events from the website without saving to database
+    print(f"Step 1: Retrieving events from {url}")
+    events = _retrieve_market_calendar_events_from_url(url, save_to_db=False, clear_existing=False, filter_currency=filter_currency)
+    
+    if not events:
         print("Failed to retrieve events for this month")
+        return False
+        
+    # Step 2: Post-process to fill in missing times
+    print(f"Step 2: Filling in missing times for {len(events)} events")
+    processed_events = _fill_missing_times(events)
+    print(f"Successfully processed {len(processed_events)} events for this month")
     
-    return events
+    # Step 3: Save processed events to database if requested
+    if save_to_db:
+        print(f"Step 3: Saving {len(processed_events)} fully processed events to database")
+        save_results = DB_Utils.save_market_calendar_events(processed_events, clear_existing=clear_existing)
+        print(f"Database save results: {save_results}")
+    
+    return processed_events
 
 @anvil.server.background_task
 def retrieve_market_calendar_events_next_month(save_to_db=True, clear_existing=True, filter_currency="USD"):
@@ -345,32 +322,43 @@ def retrieve_market_calendar_events_next_month(save_to_db=True, clear_existing=T
     This function can be scheduled to run on the first of each month
     """
     url = "https://www.forexfactory.com/calendar?month=next"
-    events = _retrieve_market_calendar_events_from_url(url, save_to_db=save_to_db, clear_existing=clear_existing, filter_currency=filter_currency)
     
-    # Post-processing to fill in missing times
-    if events:
-        events = _fill_missing_times(events)
-        print(f"Successfully retrieved {len(events)} events for next month")
-    else:
+    # Step 1: Get raw events from the website without saving to database
+    print(f"Step 1: Retrieving events from {url}")
+    events = _retrieve_market_calendar_events_from_url(url, save_to_db=False, clear_existing=False, filter_currency=filter_currency)
+    
+    if not events:
         print("Failed to retrieve events for next month")
+        return False
+        
+    # Step 2: Post-process to fill in missing times
+    print(f"Step 2: Filling in missing times for {len(events)} events")
+    processed_events = _fill_missing_times(events)
+    print(f"Successfully processed {len(processed_events)} events for next month")
     
-    return events
+    # Step 3: Save processed events to database if requested
+    if save_to_db:
+        print(f"Step 3: Saving {len(processed_events)} fully processed events to database")
+        save_results = DB_Utils.save_market_calendar_events(processed_events, clear_existing=clear_existing)
+        print(f"Database save results: {save_results}")
+    
+    return processed_events
 
 @anvil.server.background_task
 def retrieve_market_calendar_events(filter_currency="USD"):
     """
-    Legacy function that retrieves market calendar events for the current month
-    This is kept for backward compatibility
+    Legacy function that calls retrieve_market_calendar_events_this_month
     
-    This function runs as a background task to prevent timeouts during scraping.
+    This function is kept for backwards compatibility with existing code.
+    It now runs as a background task to prevent timeouts.
     
     Args:
         filter_currency (str, optional): Only return events for this currency. Default is "USD".
     
     Returns:
-        list: A list of event dictionaries or False if an error occurred
+        list: A list of event dictionaries
     """
-    print("WARNING: retrieve_market_calendar_events() is deprecated. Use retrieve_market_calendar_events_this_month() instead.")
+    print("retrieve_market_calendar_events called (legacy function)")
     return retrieve_market_calendar_events_this_month(filter_currency=filter_currency)
 
 def _fill_missing_times(events):
@@ -386,14 +374,14 @@ def _fill_missing_times(events):
     """
     print("Filling in missing time values...")
     
-    # First sort events by date and original order
-    # We'll add an index to preserve original order
-    for i, event in enumerate(events):
-        event['_index'] = i
-    
-    # Sort by date
-    events_by_date = {}
+    # Create a copy of the events to avoid modifying the original
+    processed_events = []
     for event in events:
+        processed_events.append(event.copy())
+    
+    # Sort events by date for processing
+    events_by_date = {}
+    for event in processed_events:
         date = event['date']
         if date not in events_by_date:
             events_by_date[date] = []
@@ -402,44 +390,32 @@ def _fill_missing_times(events):
     # Process each date's events to fill in missing times
     filled_count = 0
     for date, day_events in events_by_date.items():
-        # Sort by original index to maintain original order
-        day_events.sort(key=lambda e: e['_index'])
+        print(f"Processing events for date: {date}")
         
-        # Fill in missing times with previous event's time
+        # Process events in order for each day
         last_time = None
-        for event in day_events:
-            if not event['time'] or event['time'] == '':
-                if last_time:
-                    print(f"Filling in missing time for event {event['event']} on {date} with {last_time}")
-                    event['time'] = last_time
-                    filled_count += 1
-            else:
+        for i, event in enumerate(day_events):
+            print(f"  Event {i+1}: {event['event']}, Time: '{event['time']}'")
+            
+            # If time is missing but we have a previous time, fill it in
+            if (not event['time'] or event['time'] == '') and last_time:
+                event['time'] = last_time
+                print(f"    Filled missing time with: {last_time}")
+                filled_count += 1
+            # If we have a time, update our "last time" tracker
+            elif event['time'] and event['time'] != '':
                 last_time = event['time']
-    
-    # Flatten back to a list and remove the temporary index
-    result = []
-    for day_events in events_by_date.values():
-        for event in day_events:
-            del event['_index']
-            result.append(event)
-    
-    # Sort back to original order
-    result.sort(key=lambda e: events.index(e))
+                print(f"    Recorded time: {last_time}")
     
     print(f"Filled in times for {filled_count} events")
     
-    # If events were already saved to the database, update them there
-    update_db = any(e.get('_saved_to_db', False) for e in events)
-    if update_db:
-        print("Updating events in database with filled times...")
-        DB_Utils.save_market_calendar_events(result, clear_existing=False)
-    elif filled_count > 0:
-        # Mark that we need to save these filled times to the database
-        for event in result:
-            event['_needs_time_update'] = True
+    # Flatten back to a list
+    result = []
+    for day_events in events_by_date.values():
+        for event in day_events:
+            result.append(event)
     
     return result
 
 # You can test these functions using the uplink with:
-# anvil.server.call('retrieve_market_calendar_events_this_month')
-# anvil.server.call('retrieve_market_calendar_events_next_month')
+# events = anvil.server.launch_background_task('retrieve_market_calendar_events_this_month').wait_for_result()
