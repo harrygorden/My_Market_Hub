@@ -29,23 +29,35 @@ def retrieve_market_calendar_events():
         # Fetch the ForexFactory calendar page
         url = "https://www.forexfactory.com/calendar"
         print(f"Sending HTTP request to {url}")
+        
+        # Get the response and handle the StreamingMedia object properly
         response = anvil.http.request(url, json=False)
         
+        # Check if response exists
         if not response:
             print("Failed to retrieve the calendar page")
             return False
         
-        print(f"Retrieved calendar page, response length: {len(response)}")
+        print("Successfully retrieved calendar page")
+        
+        # Convert the response to a string if it's a streaming object
+        try:
+            response_text = response.get_bytes().decode('utf-8')
+        except AttributeError:
+            # If it's already a string, use it as is
+            response_text = response
+            
+        print(f"Response successfully processed")
         
         # Parse the HTML content
-        soup = BeautifulSoup(response, 'html.parser')
+        soup = BeautifulSoup(response_text, 'html.parser')
         
         # Find the calendar table
         calendar_table = soup.find('table', class_='calendar__table')
         
         if not calendar_table:
             print("Calendar table not found in the page")
-            print(f"First 500 chars of response: {response[:500]}")
+            print(f"First 500 chars of response: {response_text[:500]}")
             return False
         
         print("Found calendar table in the HTML")
