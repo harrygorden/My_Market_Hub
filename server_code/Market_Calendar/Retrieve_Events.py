@@ -300,10 +300,12 @@ def _retrieve_market_calendar_events_from_url(url, save_to_db=True, clear_existi
         print(f"Error in _retrieve_market_calendar_events_from_url: {e}")
         return False
 
-@anvil.server.callable
+@anvil.server.background_task
 def retrieve_market_calendar_events_this_month(save_to_db=True, clear_existing=False, filter_currency="USD"):
     """
     Retrieves market calendar events for the current month from ForexFactory.com
+    
+    This function runs as a background task to prevent timeouts during scraping.
     
     Args:
         save_to_db (bool, optional): Whether to save events to the database. Default is True.
@@ -327,10 +329,12 @@ def retrieve_market_calendar_events_this_month(save_to_db=True, clear_existing=F
     
     return events
 
-@anvil.server.callable
+@anvil.server.background_task
 def retrieve_market_calendar_events_next_month(save_to_db=True, clear_existing=True, filter_currency="USD"):
     """
     Retrieves market calendar events for the next month from ForexFactory.com
+    
+    This function runs as a background task to prevent timeouts during scraping.
     
     Args:
         save_to_db (bool, optional): Whether to save events to the database. Default is True.
@@ -354,11 +358,13 @@ def retrieve_market_calendar_events_next_month(save_to_db=True, clear_existing=T
     
     return events
 
-@anvil.server.callable
+@anvil.server.background_task
 def retrieve_market_calendar_events(filter_currency="USD"):
     """
     Legacy function that retrieves market calendar events for the current month
     This is kept for backward compatibility
+    
+    This function runs as a background task to prevent timeouts during scraping.
     
     Args:
         filter_currency (str, optional): Only return events for this currency. Default is "USD".
