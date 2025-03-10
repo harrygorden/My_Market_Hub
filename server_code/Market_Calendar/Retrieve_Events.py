@@ -6,7 +6,7 @@ import re
 import pytz
 from ..Shared_Functions import DB_Utils
 
-def _retrieve_market_calendar_events_from_url(url, save_to_db=True, clear_existing=False):
+def _retrieve_market_calendar_events_from_url(url, save_to_db=True, clear_existing=False, filter_currency="USD"):
     """
     Helper function to retrieve market calendar events from ForexFactory.com using a specific URL
     This function does the actual scraping work and is called by the public-facing functions
@@ -15,6 +15,7 @@ def _retrieve_market_calendar_events_from_url(url, save_to_db=True, clear_existi
         url (str): The ForexFactory calendar URL to scrape
         save_to_db (bool, optional): Whether to save events to the database. Default is True.
         clear_existing (bool, optional): Whether to clear existing events for the same dates. Default is False.
+        filter_currency (str, optional): Only return events for this currency. Default is "USD".
         
     Returns:
         list: A list of event dictionaries or False if an error occurred
@@ -121,6 +122,7 @@ def _retrieve_market_calendar_events_from_url(url, save_to_db=True, clear_existi
         # Extract events from the table
         events = []
         current_date = None
+        last_time = None  # Track the last seen time to fill in missing times
         
         # Find all table rows
         rows = calendar_table.find_all('tr')
@@ -176,9 +178,18 @@ def _retrieve_market_calendar_events_from_url(url, save_to_db=True, clear_existi
                     currency_cell = row.find('td', class_='calendar__cell calendar__currency')
                     currency = currency_cell.text.strip() if currency_cell else ''
                     
+                    # Skip this event if it's not for the filtered currency
+                    if filter_currency and currency != filter_currency:
+                        continue
+                    
                     # Get the event time
                     time_cell = row.find('td', class_='calendar__cell calendar__time')
                     event_time = time_cell.text.strip() if time_cell else ''
+                    
+                    # If time is empty, use the previous time
+                    if not event_time and last_time:
+                        event_time = last_time
+                        print(f"Using previous time '{event_time}' for event with missing time")
                     
                     # Convert the time to Chicago time if it's a valid time
                     if event_time and event_time != '' and ':' in event_time:
@@ -213,6 +224,9 @@ def _retrieve_market_calendar_events_from_url(url, save_to_db=True, clear_existi
                                 
                                 # Format the time in Chicago timezone (to 12-hour format)
                                 event_time = event_datetime_chicago.strftime("%-I:%M%p").lower()
+                                
+                                # Store this time for future events with missing times
+                                last_time = event_time
                                 
                                 # Adjust the date if the day changed during conversion
                                 if event_datetime_chicago.date() != parsed_date_chicago.date():
@@ -267,6 +281,8 @@ def _retrieve_market_calendar_events_from_url(url, save_to_db=True, clear_existi
                     continue
         
         print(f"Extracted {len(events)} total events from {url}")
+        if filter_currency:
+            print(f"Filtered to {len(events)} {filter_currency} events")
         
         # Save events to the database if requested
         if save_to_db and events:
@@ -285,13 +301,14 @@ def _retrieve_market_calendar_events_from_url(url, save_to_db=True, clear_existi
         return False
 
 @anvil.server.callable
-def retrieve_market_calendar_events_this_month(save_to_db=True, clear_existing=False):
+def retrieve_market_calendar_events_this_month(save_to_db=True, clear_existing=False, filter_currency="USD"):
     """
     Retrieves market calendar events for the current month from ForexFactory.com
     
     Args:
         save_to_db (bool, optional): Whether to save events to the database. Default is True.
         clear_existing (bool, optional): Whether to clear existing events for the same dates. Default is False.
+        filter_currency (str, optional): Only return events for this currency. Default is "USD".
     
     Returns:
         list: A list of event dictionaries or False if an error occurred
@@ -299,7 +316,7 @@ def retrieve_market_calendar_events_this_month(save_to_db=True, clear_existing=F
     This function can be called via uplink for testing
     """
     url = "https://www.forexfactory.com/calendar?month=this"
-    events = _retrieve_market_calendar_events_from_url(url, save_to_db=save_to_db, clear_existing=clear_existing)
+    events = _retrieve_market_calendar_events_from_url(url, save_to_db=save_to_db, clear_existing=clear_existing, filter_currency=filter_currency)
     
     if events:
         print(f"Successfully retrieved {len(events)} events for this month")
@@ -309,13 +326,14 @@ def retrieve_market_calendar_events_this_month(save_to_db=True, clear_existing=F
     return events
 
 @anvil.server.callable
-def retrieve_market_calendar_events_next_month(save_to_db=True, clear_existing=True):
+def retrieve_market_calendar_events_next_month(save_to_db=True, clear_existing=True, filter_currency="USD"):
     """
     Retrieves market calendar events for the next month from ForexFactory.com
     
     Args:
         save_to_db (bool, optional): Whether to save events to the database. Default is True.
         clear_existing (bool, optional): Whether to clear existing events for the same dates. Default is True.
+        filter_currency (str, optional): Only return events for this currency. Default is "USD".
     
     Returns:
         list: A list of event dictionaries or False if an error occurred
@@ -323,7 +341,7 @@ def retrieve_market_calendar_events_next_month(save_to_db=True, clear_existing=T
     This function can be scheduled to run on the first of each month
     """
     url = "https://www.forexfactory.com/calendar?month=next"
-    events = _retrieve_market_calendar_events_from_url(url, save_to_db=save_to_db, clear_existing=clear_existing)
+    events = _retrieve_market_calendar_events_from_url(url, save_to_db=save_to_db, clear_existing=clear_existing, filter_currency=filter_currency)
     
     if events:
         print(f"Successfully retrieved {len(events)} events for next month")
@@ -333,16 +351,19 @@ def retrieve_market_calendar_events_next_month(save_to_db=True, clear_existing=T
     return events
 
 @anvil.server.callable
-def retrieve_market_calendar_events():
+def retrieve_market_calendar_events(filter_currency="USD"):
     """
     Legacy function that retrieves market calendar events for the current month
     This is kept for backward compatibility
+    
+    Args:
+        filter_currency (str, optional): Only return events for this currency. Default is "USD".
     
     Returns:
         list: A list of event dictionaries or False if an error occurred
     """
     print("WARNING: retrieve_market_calendar_events() is deprecated. Use retrieve_market_calendar_events_this_month() instead.")
-    return retrieve_market_calendar_events_this_month()
+    return retrieve_market_calendar_events_this_month(filter_currency=filter_currency)
 
 # You can test these functions using the uplink with:
 # anvil.server.call('retrieve_market_calendar_events_this_month')
