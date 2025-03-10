@@ -13,7 +13,7 @@ You are Windsurf Cascade, an AI assistant with advanced problem-solving capabili
    ## Task Analysis
    - Purpose: This app should act as a central hub that allows me to aggregate market information that is important to me for my trading strategies into one place.
    - Technical Requirements: This app runs in the Anvil platform and needs to be written with that in mind.
-   - Implementation Steps: Code cannot be tested locally as it will need to be run in the Anvil environment.
+   - Implementation Steps: Code cannot be tested locally as it will need to be run in the Anvil environment, but can be tested via uplink.
    - Quality Standards: This app is only for my use but it's still important that it is well-structured and follows best practices, as well as accurate as I will use it to make trading decisions.
    ```
 
@@ -73,6 +73,17 @@ Anvil.works is a full-stack Python web app development platform that allows deve
    - Assets (images, files) stored in the "Assets" section
    - No direct file system access on standard plans
 
+### Testing with Uplink
+1. **Uplink Connection**
+   - Run `Uplink_Apps/connect_uplink.py` to establish connection to Anvil
+   - Uses uplink key stored in `Uplink_Apps/.env` as "AnvilServerUplinkCode"
+   - After connecting, an interactive command prompt (Anvil>) will appear
+   - At this prompt, you can:
+     - Call Anvil server functions using `anvil.server.call('function_name', arg1, arg2)`
+     - Type `help` to see available commands
+     - Type `list_functions` to see available server functions
+     - Type `exit` or `quit` to disconnect and exit
+
 ### Implementation Guidelines for This App
 1. **Worker File Organization**
    - `Main.py`: Orchestrator file managing complex workflows
@@ -89,10 +100,15 @@ Anvil.works is a full-stack Python web app development platform that allows deve
    - Handle UI events through form methods
    - Use Anvil's built-in components when possible
 
-3. **Testing Constraints**
-   - Code cannot be tested locally, only in the Anvil environment
-   - Use Anvil's built-in console for debugging
-   - Set up test functions with the `@anvil.server.callable` decorator for quick testing
+3. **Logging Best Practices**
+   - Use concise but thorough logging messages that provide context
+   - Include timestamps in logs for temporal tracking
+   - Add appropriate level tags (INFO, WARNING, ERROR) to differentiate severity
+   - Include relevant variables and state information for troubleshooting
+   - Use structured logging when possible for easier parsing
+   - In error logs, include both the error message and its context
+   - Avoid excessive logging that might impact performance
+   - Use log categories to help filter logs by component
 
 4. **API Integration**
    - Use `anvil.http` for HTTP requests from server code
@@ -116,154 +132,13 @@ For comprehensive understanding and code samples, refer to the [Anvil Documentat
 - [Email Service](https://anvil.works/docs/email)
 - [Uplink](https://anvil.works/docs/uplink)
 
-### Comprehensive Anvil Documentation Index
-
-#### 1. Anvil Platform Core Concepts
-- [Platform Overview](https://anvil.works/docs/overview) - Introduction to Anvil's architecture and capabilities
-- [App Structure](https://anvil.works/docs/overview/app-structure) - Understanding the components of an Anvil application
-- [Quickstart Guides](https://anvil.works/docs/overview/quickstarts) - Quick introductions to key Anvil features
-- [Learning Centre](https://anvil.works/learn) - Guided tutorials and learning resources
-- [Community Forum](https://anvil.works/forum) - Get help from the Anvil community
-
-#### 2. Client-Side Development
-- [UI Design Fundamentals](https://anvil.works/docs/client) - Working with the drag-and-drop UI designer
-- [Client-Side Python](https://anvil.works/docs/client/python) - Writing Python that runs in the browser
-- [Form Lifecycle](https://anvil.works/docs/client/forms) - Understanding how forms are created and used
-- [Components Reference](https://anvil.works/docs/client/components) - Detailed guide to all available UI components
-- [Client-Side Events](https://anvil.works/docs/client/python/events) - Handling user interactions
-- [Navigation](https://anvil.works/docs/client/python/routing) - Moving between forms and managing application flow
-
-#### 3. Server-Side Development
-- [Server Modules](https://anvil.works/docs/server) - Creating secure server-side code
-- [Server Functions](https://anvil.works/docs/server/functions) - Creating and calling callable server functions
-- [Background Tasks](https://anvil.works/docs/server/background-tasks) - Running long-running processes
-- [Scheduled Tasks](https://anvil.works/docs/server/scheduled-tasks) - Scheduling code to run at regular intervals
-- [Portable Classes](https://anvil.works/docs/server/portable-classes) - Creating classes that work between client and server
-- [Python Dependencies](https://anvil.works/docs/server/packages) - Using third-party Python packages
-
-#### 4. Data Management
-- [Data Tables Overview](https://anvil.works/docs/data-tables) - Working with Anvil's built-in database
-- [Creating Tables](https://anvil.works/docs/data-tables/data-tables-in-code) - Setting up your data structure
-- [Querying Data](https://anvil.works/docs/data-tables/searching-for-data) - Retrieving information from Data Tables
-- [Data Security](https://anvil.works/docs/data-tables/data-security) - Protecting your application data
-- [Data Import/Export](https://anvil.works/docs/data-tables/data-import-export) - Moving data in and out of your app
-
-#### 5. Integration and Services
-- [Email Service](https://anvil.works/docs/email) - Sending and receiving emails
-- [Users Service](https://anvil.works/docs/users) - User authentication and management
-- [File Storage](https://anvil.works/docs/working-with-files) - Working with files and media
-- [HTTP APIs](https://anvil.works/docs/http-apis) - Creating and consuming HTTP APIs
-- [Uplink](https://anvil.works/docs/uplink) - Connecting your own Python environment
-- [Third-Party Services](https://anvil.works/docs/integrations) - Integration with Google, Microsoft, etc.
-
-#### 6. Deployment and Operations
-- [App Deployment](https://anvil.works/docs/deployment) - Publishing your application
-- [Version Control](https://anvil.works/docs/version-control) - Managing code with Git
-- [Dependency Management](https://anvil.works/docs/server/packages) - Managing Python dependencies
-- [Performance Optimization](https://anvil.works/docs/client/python/performance) - Making your app faster
-- [Security Best Practices](https://anvil.works/docs/security) - Keeping your app secure
-
-#### 7. My_Market_Hub Specific Modules
-- `Main.py`: Orchestrator for complex workflows, managing the overall application flow
-  - All major workflow functions should be implemented here
-  - Functions that coordinate between different modules
-  - Startup code and initialization routines
-  
-- `Retrieve_Emails.py`: Email retrieval and processing
-  - Gmail integration functions
-  - Email filtering and sorting
-  - Attachment handling
-  - Email parsing utilities
-  
-- `DB_Utils.py`: Database operations and data management
-  - CRUD operations for all app tables
-  - Data validation functions
-  - Query optimization helpers
-  - Data migration and transformation utilities
-  
-- `Shared_Functions.py`: Common utility functions used across modules
-  - Date/time handling
-  - Text processing and formatting
-  - Logging utilities
-  - Common calculation functions
-  
-- `Extract_ES_Newsletter_Sections.py`: E-Mini Futures newsletter analysis
-  - Newsletter parsing for E-Mini futures content
-  - E-Mini market data extraction
-  - Technical analysis related to E-Mini futures
-  - Trend identification and filtering
-  
-- `Extract_Flow_Newsletter_Sections.py`: Market flow and structure analysis
-  - Market flow pattern identification
-  - General market structure analysis
-  - Flow-based signals extraction
-  - Market trend summarization
-
-#### 8. Code Examples
-
-**Client-Side Form Initialization:**
-```python
-class MyForm(MyFormTemplate):
-  def __init__(self, **properties):
-    # Initialize form
-    self.init_components(**properties)
-    
-    # Load initial data
-    self.refresh_data()
-    
-  def refresh_data(self):
-    # Call server function to get data
-    self.data = anvil.server.call('get_market_data')
-    self.data_grid.items = self.data
-```
-
-**Server-Side Callable Function:**
-```python
-@anvil.server.callable
-def get_market_data(filter_by=None):
-  # Query data tables to get market data
-  if filter_by:
-    return app_tables.market_data.search(category=filter_by)
-  else:
-    return app_tables.market_data.search()
-```
-
-**Database Operations:**
-```python
-@anvil.server.callable
-def save_analysis(data_dict):
-  # Add validation
-  if not data_dict.get('title'):
-    raise ValueError("Analysis must have a title")
-    
-  # Save to database
-  return app_tables.analysis.add_row(
-    title=data_dict['title'],
-    content=data_dict['content'],
-    created=datetime.now(),
-    category=data_dict.get('category', 'general')
-  )
-```
-
-**Email Processing:**
-```python
-@anvil.server.callable
-def process_new_emails():
-  # Get new emails
-  emails = anvil.google.mail.inbox(label="INBOX")
-  
-  # Process each email
-  for email in emails:
-    if is_newsletter(email):
-      process_newsletter(email)
-```
-
 ## Implementation Planning
    ```markdown
    ## Implementation Plan
    1. This app is designed to run in the Anvil platform.
       - Ensure that all changes are designed to run in the Anvil platform.
-      - Do not try to run any commands locally as they will need to be called in the Anvil environment.
+      - Use uplink connection for testing server functions locally.
+      - Keep logging concise but thorough to aid troubleshooting.
    2. Ensure that new functions are always written to the correct worker file.
       - Main.py is designed to be the orchestrator file that manages the workflows for complex functions.
       - Retrieve_Emails.py is designed to retrieve emails from the specified GMail inbox.

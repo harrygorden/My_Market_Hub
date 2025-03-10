@@ -1,4 +1,6 @@
+.env
 *.pyc
 *.pyo
 __pycache__
 .anvil-data
+Uplink_Apps*
