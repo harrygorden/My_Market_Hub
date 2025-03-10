@@ -413,6 +413,7 @@ def _fill_missing_times(events):
                 if last_time:
                     print(f"Filling in missing time for event {event['event']} on {date} with {last_time}")
                     event['time'] = last_time
+                    # No need for timezone conversion - the last_time was already converted
             else:
                 last_time = event['time']
     
