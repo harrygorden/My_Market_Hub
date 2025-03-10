@@ -10,12 +10,12 @@ import pytz
 def retrieve_market_calendar_events():
     """
     Retrieves market calendar events from ForexFactory.com
-    Filters for events for the next 10 days
+    Filters for USD currency events for the next 10 days
     Prints results to the console
     
     This function can be called via uplink for testing
     """
-    print("Starting ForexFactory calendar scraping")
+    print("Starting ForexFactory calendar scraping for USD events")
     
     try:
         # Get the current date and time in Central Time
@@ -25,7 +25,7 @@ def retrieve_market_calendar_events():
         # Calculate end date (10 days from now)
         end_date = now + datetime.timedelta(days=10)
         
-        print(f"Retrieving events from {now.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
+        print(f"Retrieving USD events from {now.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
         
         # Fetch the ForexFactory calendar page
         url = "https://www.forexfactory.com/calendar"
@@ -116,6 +116,10 @@ def retrieve_market_calendar_events():
                     currency_cell = row.find('td', class_='calendar__cell calendar__currency')
                     currency = currency_cell.text.strip() if currency_cell else ''
                     
+                    # Skip non-USD events
+                    if currency != 'USD':
+                        continue
+                    
                     # Get the event time
                     time_cell = row.find('td', class_='calendar__cell calendar__time')
                     event_time = time_cell.text.strip() if time_cell else ''
@@ -171,14 +175,14 @@ def retrieve_market_calendar_events():
                     
                     events.append(event_data)
                     
-                    # Print all events
-                    print(f"Event: {current_date} {event_time} | {currency} | {event_name} | Impact: {impact} | Forecast: {forecast} | Previous: {previous}")
+                    # Print USD events
+                    print(f"USD Event: {current_date} {event_time} | {event_name} | Impact: {impact} | Forecast: {forecast} | Previous: {previous}")
                     
                 except Exception as e:
                     print(f"Error processing event row: {e}")
                     continue
         
-        print(f"Extracted {len(events)} total events within date range")
+        print(f"Extracted {len(events)} USD events within date range")
         return events
         
     except Exception as e:
@@ -191,11 +195,12 @@ def retrieve_market_calendar_events():
 def retrieve_market_calendar_events_this_month():
     """
     Retrieves market calendar events from ForexFactory.com for the current month
+    Filters for USD currency events only
     Prints results to the console
     
     This function can be scheduled to run monthly
     """
-    print("Starting ForexFactory calendar scraping for this month")
+    print("Starting ForexFactory calendar scraping for this month (USD events only)")
     return _process_calendar_for_month("https://www.forexfactory.com/calendar?month=this")
 
 
@@ -204,29 +209,25 @@ def retrieve_market_calendar_events_this_month():
 def retrieve_market_calendar_events_next_month():
     """
     Retrieves market calendar events from ForexFactory.com for the next month
+    Filters for USD currency events only
     Prints results to the console
     
     This function can be scheduled to run on the first of each month
     """
-    print("Starting ForexFactory calendar scraping for next month")
+    print("Starting ForexFactory calendar scraping for next month (USD events only)")
     return _process_calendar_for_month("https://www.forexfactory.com/calendar?month=next")
 
 
 def _process_calendar_for_month(url):
     """
-    Helper function to process calendar data for a given month URL
-    
-    Args:
-        url (str): The ForexFactory URL to scrape (with month parameter)
-        
-    Returns:
-        list: List of event dictionaries or False if an error occurred
+    Helper function to process the calendar data for a given month URL
+    Filters for USD currency events only
+    Returns a list of event dictionaries or False if an error occurs
     """
     try:
-        # Get the current date and time in Central Time (for logging)
-        central_tz = pytz.timezone('US/Central')
-        now = datetime.datetime.now(central_tz)
+        print(f"Processing calendar data from {url}")
         
+        # Fetch the ForexFactory calendar page for the month
         print(f"Sending HTTP request to {url}")
         
         # Get the response and handle the StreamingMedia object properly
@@ -260,6 +261,10 @@ def _process_calendar_for_month(url):
             return False
         
         print("Found calendar table in the HTML")
+        
+        # Get the current date and time in Central Time (for date parsing)
+        central_tz = pytz.timezone('US/Central')
+        now = datetime.datetime.now(central_tz)
         
         # Extract events from the table
         events = []
@@ -314,6 +319,10 @@ def _process_calendar_for_month(url):
                     currency_cell = row.find('td', class_='calendar__cell calendar__currency')
                     currency = currency_cell.text.strip() if currency_cell else ''
                     
+                    # Skip non-USD events
+                    if currency != 'USD':
+                        continue
+                    
                     # Get the event time
                     time_cell = row.find('td', class_='calendar__cell calendar__time')
                     event_time = time_cell.text.strip() if time_cell else ''
@@ -355,18 +364,18 @@ def _process_calendar_for_month(url):
                     
                     events.append(event_data)
                     
-                    # Print all events
-                    print(f"Event: {current_date} {event_time} | {currency} | {event_name} | Impact: {impact} | Forecast: {forecast} | Previous: {previous}")
+                    # Print the USD event
+                    print(f"USD Event: {current_date} {event_time} | {event_name} | Impact: {impact} | Forecast: {forecast} | Previous: {previous}")
                     
                 except Exception as e:
                     print(f"Error processing event row: {e}")
                     continue
         
-        print(f"Extracted {len(events)} total events for the month")
+        print(f"Extracted {len(events)} USD events for the month")
         return events
         
     except Exception as e:
-        print(f"Error processing calendar: {e}")
+        print(f"Error in _process_calendar_for_month: {e}")
         return False
 
 # You can test these functions using the uplink with:
