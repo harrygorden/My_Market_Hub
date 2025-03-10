@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 import datetime
 import re
 import pytz
+from ..Shared_Functions import DB_Utils
 
 @anvil.server.callable
 @anvil.server.background_task
@@ -13,6 +14,7 @@ def retrieve_market_calendar_events():
     Filters for USD currency events for the next 10 days
     Prints results to the console
     Ensures all dates/times are converted to America/Chicago timezone
+    Saves events to the marketcalendar Anvil table
     
     This function can be called via uplink for testing
     """
@@ -245,6 +247,20 @@ def retrieve_market_calendar_events():
                     continue
         
         print(f"Extracted {len(events)} USD events within date range (all times in Chicago timezone)")
+        
+        # Save events to the marketcalendar table
+        if events:
+            # Clear existing events for the date range to avoid duplicates
+            start_date = datetime.datetime.strptime(events[0]['date'], '%Y-%m-%d').date()
+            end_date_obj = datetime.datetime.strptime(events[-1]['date'], '%Y-%m-%d').date()
+            DB_Utils.clear_market_calendar_events_for_date_range(start_date, end_date_obj)
+            
+            # Save the new events
+            saved_count = DB_Utils.save_multiple_market_calendar_events(events)
+            print(f"Saved {saved_count} events to marketcalendar table")
+        else:
+            print("No events to save to the database")
+        
         return events
         
     except Exception as e:
@@ -259,11 +275,32 @@ def retrieve_market_calendar_events_this_month():
     Retrieves market calendar events from ForexFactory.com for the current month
     Filters for USD currency events only
     Prints results to the console
+    Saves events to the marketcalendar Anvil table
     
     This function can be scheduled to run monthly
     """
     print("Starting ForexFactory calendar scraping for this month (USD events only)")
-    return _process_calendar_for_month("https://www.forexfactory.com/calendar?month=this")
+    
+    # Get the current month and year
+    chicago_tz = pytz.timezone('America/Chicago')
+    now = datetime.datetime.now(chicago_tz)
+    current_year = now.year
+    current_month = now.month
+    
+    # Clear existing events for this month to avoid duplicates
+    DB_Utils.clear_market_calendar_events_for_month(current_year, current_month)
+    
+    # Get events for the current month
+    events = _process_calendar_for_month("https://www.forexfactory.com/calendar?month=this")
+    
+    # Save events to the marketcalendar table
+    if events:
+        saved_count = DB_Utils.save_multiple_market_calendar_events(events)
+        print(f"Saved {saved_count} events to marketcalendar table for {now.strftime('%B %Y')}")
+    else:
+        print(f"No events to save for {now.strftime('%B %Y')}")
+    
+    return events
 
 
 @anvil.server.callable
@@ -273,11 +310,40 @@ def retrieve_market_calendar_events_next_month():
     Retrieves market calendar events from ForexFactory.com for the next month
     Filters for USD currency events only
     Prints results to the console
+    Saves events to the marketcalendar Anvil table
     
     This function can be scheduled to run on the first of each month
     """
     print("Starting ForexFactory calendar scraping for next month (USD events only)")
-    return _process_calendar_for_month("https://www.forexfactory.com/calendar?month=next")
+    
+    # Calculate next month and year
+    chicago_tz = pytz.timezone('America/Chicago')
+    now = datetime.datetime.now(chicago_tz)
+    
+    # Get next month and year
+    if now.month == 12:
+        next_month = 1
+        next_year = now.year + 1
+    else:
+        next_month = now.month + 1
+        next_year = now.year
+    
+    # Clear existing events for next month to avoid duplicates
+    DB_Utils.clear_market_calendar_events_for_month(next_year, next_month)
+    
+    # Get events for the next month
+    events = _process_calendar_for_month("https://www.forexfactory.com/calendar?month=next")
+    
+    # Save events to the marketcalendar table
+    if events:
+        saved_count = DB_Utils.save_multiple_market_calendar_events(events)
+        next_month_name = datetime.date(next_year, next_month, 1).strftime('%B %Y')
+        print(f"Saved {saved_count} events to marketcalendar table for {next_month_name}")
+    else:
+        next_month_name = datetime.date(next_year, next_month, 1).strftime('%B %Y')
+        print(f"No events to save for {next_month_name}")
+    
+    return events
 
 
 def _process_calendar_for_month(url):
