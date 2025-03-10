@@ -49,8 +49,8 @@ def save_market_calendar_event(event_data):
         # Check if this event already exists in the table
         existing_event = app_tables.marketcalendar.get(
             date=event_date,
-            event_time=event_data['time'],
-            event_name=event_data['event'],
+            time=event_data['time'],
+            event=event_data['event'],
             currency=event_data['currency']
         )
         
@@ -68,13 +68,12 @@ def save_market_calendar_event(event_data):
             # Create new event
             new_event = app_tables.marketcalendar.add_row(
                 date=event_date,
-                event_time=event_data['time'],
-                event_name=event_data['event'],
+                time=event_data['time'],
+                event=event_data['event'],
                 currency=event_data['currency'],
                 impact=event_data['impact'],
                 forecast=event_data['forecast'],
-                previous=event_data['previous'],
-                processed=False  # Default to not processed
+                previous=event_data['previous']
             )
             # Reduce log verbosity - comment out individual event logging
             # print(f"Added new event: {event_data['event']}")
@@ -192,13 +191,12 @@ def get_market_calendar_events_for_date_range(start_date, end_date):
         for event in events:
             event_dict = {
                 'date': event['date'].strftime('%Y-%m-%d'),
-                'time': event['event_time'],
-                'event': event['event_name'],
+                'time': event['time'],
+                'event': event['event'],
                 'currency': event['currency'],
                 'impact': event['impact'],
                 'forecast': event['forecast'],
-                'previous': event['previous'],
-                'processed': event['processed']
+                'previous': event['previous']
             }
             event_list.append(event_dict)
         
