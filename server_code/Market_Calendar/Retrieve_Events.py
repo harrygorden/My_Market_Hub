@@ -318,7 +318,9 @@ def retrieve_market_calendar_events_this_month(save_to_db=True, clear_existing=F
     url = "https://www.forexfactory.com/calendar?month=this"
     events = _retrieve_market_calendar_events_from_url(url, save_to_db=save_to_db, clear_existing=clear_existing, filter_currency=filter_currency)
     
+    # Post-processing to fill in missing times
     if events:
+        events = _fill_missing_times(events)
         print(f"Successfully retrieved {len(events)} events for this month")
     else:
         print("Failed to retrieve events for this month")
@@ -343,7 +345,9 @@ def retrieve_market_calendar_events_next_month(save_to_db=True, clear_existing=T
     url = "https://www.forexfactory.com/calendar?month=next"
     events = _retrieve_market_calendar_events_from_url(url, save_to_db=save_to_db, clear_existing=clear_existing, filter_currency=filter_currency)
     
+    # Post-processing to fill in missing times
     if events:
+        events = _fill_missing_times(events)
         print(f"Successfully retrieved {len(events)} events for next month")
     else:
         print("Failed to retrieve events for next month")
@@ -364,6 +368,66 @@ def retrieve_market_calendar_events(filter_currency="USD"):
     """
     print("WARNING: retrieve_market_calendar_events() is deprecated. Use retrieve_market_calendar_events_this_month() instead.")
     return retrieve_market_calendar_events_this_month(filter_currency=filter_currency)
+
+def _fill_missing_times(events):
+    """
+    Post-processing function to fill in missing time values with the time from the previous event.
+    This is more robust than trying to handle it during scraping.
+    
+    Args:
+        events (list): List of event dictionaries
+        
+    Returns:
+        list: Events with missing times filled in
+    """
+    print("Filling in missing time values...")
+    
+    # First sort events by date and original order
+    # We'll add an index to preserve original order
+    for i, event in enumerate(events):
+        event['_index'] = i
+    
+    # Sort by date
+    events_by_date = {}
+    for event in events:
+        date = event['date']
+        if date not in events_by_date:
+            events_by_date[date] = []
+        events_by_date[date].append(event)
+    
+    # Process each date's events to fill in missing times
+    for date, day_events in events_by_date.items():
+        # Sort by original index to maintain original order
+        day_events.sort(key=lambda e: e['_index'])
+        
+        # Fill in missing times with previous event's time
+        last_time = None
+        for event in day_events:
+            if not event['time'] or event['time'] == '':
+                if last_time:
+                    print(f"Filling in missing time for event {event['event']} on {date} with {last_time}")
+                    event['time'] = last_time
+            else:
+                last_time = event['time']
+    
+    # Flatten back to a list and remove the temporary index
+    result = []
+    for day_events in events_by_date.values():
+        for event in day_events:
+            del event['_index']
+            result.append(event)
+    
+    # Sort back to original order
+    result.sort(key=lambda e: events.index(e))
+    
+    print(f"Filled in times for events")
+    
+    # If events were already saved to the database, update them there
+    if any(e.get('_saved_to_db', False) for e in events):
+        print("Updating events in database with filled times...")
+        DB_Utils.save_market_calendar_events(result, clear_existing=False)
+    
+    return result
 
 # You can test these functions using the uplink with:
 # anvil.server.call('retrieve_market_calendar_events_this_month')
