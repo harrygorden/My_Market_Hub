@@ -9,7 +9,7 @@ import pytz
 def retrieve_market_calendar_events():
     """
     Retrieves market calendar events from ForexFactory.com
-    Filters for USD currency events for the next 10 days
+    Filters for events for the next 10 days
     Prints results to the console
     
     This function can be called via uplink for testing
@@ -82,12 +82,23 @@ def retrieve_market_calendar_events():
                     try:
                         # Add current year since it's not in the date string
                         date_with_year = f"{date_text} {now.year}"
+                        # Create a naive datetime object
                         parsed_date = datetime.datetime.strptime(date_with_year, "%a %b %d %Y")
+                        
+                        # Make it timezone-aware with the same timezone as 'now'
+                        parsed_date = central_tz.localize(parsed_date)
+                        
                         # Fix year if the parsed date is too far in the past (for December->January transition)
-                        if (now - parsed_date).days > 300:
-                            parsed_date = parsed_date.replace(year=now.year + 1)
+                        naive_now = now.replace(tzinfo=None)
+                        naive_parsed = parsed_date.replace(tzinfo=None)
+                        if (naive_now - naive_parsed).days > 300:
+                            parsed_date = central_tz.localize(
+                                datetime.datetime(now.year + 1, parsed_date.month, parsed_date.day, 
+                                                parsed_date.hour, parsed_date.minute, parsed_date.second)
+                            )
+                        
                         current_date = parsed_date.strftime("%Y-%m-%d")
-                        print(f"Parsed date: {current_date}")
+                        print(f"Successfully parsed date: {current_date}")
                     except Exception as e:
                         print(f"Error parsing date '{date_text}': {e}")
                         continue
@@ -134,15 +145,16 @@ def retrieve_market_calendar_events():
                     
                     # Parse the event date to check if it's within our date range
                     try:
-                        event_date = datetime.datetime.strptime(current_date, "%Y-%m-%d")
-                        # Convert to datetime with timezone for proper comparison
-                        event_date = central_tz.localize(event_date)
+                        # Create a naive datetime object first
+                        event_date_naive = datetime.datetime.strptime(current_date, "%Y-%m-%d")
+                        # Make it timezone-aware with the same timezone as 'now'
+                        event_date = central_tz.localize(event_date_naive)
                         
-                        # Skip events outside our target date range
+                        # Skip events outside our target date range - both now timezone-aware
                         if event_date < now or event_date > end_date:
                             continue
                     except Exception as e:
-                        print(f"Error parsing event date: {e}")
+                        print(f"Error checking event date range: {e}")
                         continue
                     
                     # Construct event data
@@ -158,7 +170,7 @@ def retrieve_market_calendar_events():
                     
                     events.append(event_data)
                     
-                    # Print all events (not just USD)
+                    # Print all events
                     print(f"Event: {current_date} {event_time} | {currency} | {event_name} | Impact: {impact} | Forecast: {forecast} | Previous: {previous}")
                     
                 except Exception as e:
