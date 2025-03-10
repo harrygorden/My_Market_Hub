@@ -17,6 +17,8 @@ unique_ids:
     Flow_Analysis: '1741557979358386963324881.3269'
     Flow_Analysis.Extract_Flow_Newsletter_Sections: '174155948196877666169638.9167'
     Main: '1741557900650110586694314.10472'
+    Market_Calendar: '1741570017477817091243606.7323'
+    Market_Calendar.Retrieve_Events: '1741570046652850597584137.9492'
     Shared_Functions: '1741559031948748956627419.197'
     Shared_Functions.DB_Utils: '1741559374118208996889596.99048'
     Shared_Functions.Retrieve_Emails: '1741559338122494043394287.89343'
