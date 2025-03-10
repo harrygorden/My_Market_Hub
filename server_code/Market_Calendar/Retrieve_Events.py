@@ -239,8 +239,8 @@ def retrieve_market_calendar_events():
                     
                     events.append(event_data)
                     
-                    # Print USD events
-                    print(f"USD Event: {current_date} {chicago_event_time} | {event_name} | Impact: {impact} | Forecast: {forecast} | Previous: {previous} (Chicago time)")
+                    # Comment out individual event printing to reduce log verbosity
+                    # print(f"USD Event: {current_date} {chicago_event_time} | {event_name} | Impact: {impact} | Forecast: {forecast} | Previous: {previous} (Chicago time)")
                     
                 except Exception as e:
                     print(f"Error processing event row: {e}")
@@ -554,8 +554,8 @@ def _process_calendar_for_month(url):
                     
                     events.append(event_data)
                     
-                    # Print the USD event
-                    print(f"USD Event: {current_date} {chicago_event_time} | {event_name} | Impact: {impact} | Forecast: {forecast} | Previous: {previous} (Chicago time)")
+                    # Comment out individual event printing to reduce log verbosity
+                    # print(f"USD Event: {current_date} {chicago_event_time} | {event_name} | Impact: {impact} | Forecast: {forecast} | Previous: {previous} (Chicago time)")
                     
                 except Exception as e:
                     print(f"Error processing event row: {e}")

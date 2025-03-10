@@ -40,7 +40,8 @@ def save_market_calendar_event(event_data):
         row: The newly created or updated table row
     """
     try:
-        print(f"Saving market calendar event: {event_data['date']} {event_data['time']} - {event_data['event']}")
+        # Reduce log verbosity - comment out individual event logging
+        # print(f"Saving market calendar event: {event_data['date']} {event_data['time']} - {event_data['event']}")
         
         # Convert date string to datetime.date object
         event_date = datetime.datetime.strptime(event_data['date'], '%Y-%m-%d').date()
@@ -60,7 +61,8 @@ def save_market_calendar_event(event_data):
                 forecast=event_data['forecast'],
                 previous=event_data['previous']
             )
-            print(f"Updated existing event: {event_data['event']}")
+            # Reduce log verbosity - comment out individual event logging
+            # print(f"Updated existing event: {event_data['event']}")
             return existing_event
         else:
             # Create new event
@@ -74,7 +76,8 @@ def save_market_calendar_event(event_data):
                 previous=event_data['previous'],
                 processed=False  # Default to not processed
             )
-            print(f"Added new event: {event_data['event']}")
+            # Reduce log verbosity - comment out individual event logging
+            # print(f"Added new event: {event_data['event']}")
             return new_event
     
     except Exception as e:
