@@ -8,7 +8,6 @@ import anvil.server
 import anvil.http
 from bs4 import BeautifulSoup
 import datetime
-import logging
 import re
 import pytz
 
@@ -23,7 +22,7 @@ def retrieve_market_calendar_events():
     This function is designed to be run as a scheduled task in Anvil,
     recommended to run every Thursday at 5PM Central time.
     """
-    logging.info("Starting ForexFactory calendar scraping")
+    print("Starting ForexFactory calendar scraping")
     
     try:
         # Get the current date and time in Central Time
@@ -33,15 +32,18 @@ def retrieve_market_calendar_events():
         # Calculate end date (10 days from now)
         end_date = now + datetime.timedelta(days=10)
         
-        logging.info(f"Retrieving events from {now.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
+        print(f"Retrieving events from {now.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
         
         # Fetch the ForexFactory calendar page
         url = "https://www.forexfactory.com/calendar"
+        print(f"Sending HTTP request to {url}")
         response = anvil.http.request(url, json=False)
         
         if not response:
-            logging.error("Failed to retrieve the calendar page")
+            print("Failed to retrieve the calendar page")
             return False
+        
+        print(f"Retrieved calendar page, response length: {len(response)}")
         
         # Parse the HTML content
         soup = BeautifulSoup(response, 'html.parser')
@@ -50,8 +52,11 @@ def retrieve_market_calendar_events():
         calendar_table = soup.find('table', class_='calendar__table')
         
         if not calendar_table:
-            logging.error("Calendar table not found in the page")
+            print("Calendar table not found in the page")
+            print(f"First 500 chars of response: {response[:500]}")
             return False
+        
+        print("Found calendar table in the HTML")
         
         # Extract events from the table
         events = []
@@ -59,6 +64,7 @@ def retrieve_market_calendar_events():
         
         # Find all table rows
         rows = calendar_table.find_all('tr')
+        print(f"Found {len(rows)} rows in the calendar table")
         
         for row in rows:
             # Check if this is a date row
@@ -77,8 +83,9 @@ def retrieve_market_calendar_events():
                         if (now - parsed_date).days > 300:
                             parsed_date = parsed_date.replace(year=now.year + 1)
                         current_date = parsed_date.strftime("%Y-%m-%d")
+                        print(f"Parsed date: {current_date}")
                     except Exception as e:
-                        logging.error(f"Error parsing date '{date_text}': {e}")
+                        print(f"Error parsing date '{date_text}': {e}")
                         continue
             
             # Check if this is an event row
@@ -145,8 +152,10 @@ def retrieve_market_calendar_events():
                         # Skip events outside our target date range
                         if event_date < now or event_date > end_date:
                             continue
+                        
+                        print(f"Found USD event: {event_name} on {current_date} at {event_time}")
                     except Exception as e:
-                        logging.error(f"Error parsing event date: {e}")
+                        print(f"Error parsing event date: {e}")
                         continue
                     
                     # Construct event data
@@ -165,17 +174,24 @@ def retrieve_market_calendar_events():
                     events.append(event_data)
                     
                 except Exception as e:
-                    logging.error(f"Error processing event row: {e}")
+                    print(f"Error processing event row: {e}")
                     continue
         
+        print(f"Extracted {len(events)} USD events within date range")
+        
+        # Verify if events were found before attempting to save
+        if not events:
+            print("No USD events found for the specified date range. Nothing to save.")
+            return True
+            
         # Save events to the marketcalendar table
         save_events_to_table(events)
         
-        logging.info(f"Successfully retrieved and processed {len(events)} USD market events")
+        print(f"Successfully retrieved and processed {len(events)} USD market events")
         return True
         
     except Exception as e:
-        logging.error(f"Error in retrieve_market_calendar_events: {e}")
+        print(f"Error in retrieve_market_calendar_events: {e}")
         return False
 
 def save_events_to_table(events):
@@ -184,19 +200,33 @@ def save_events_to_table(events):
     Handles duplicate checking to avoid adding the same event twice
     """
     if not events:
-        logging.info("No events to save")
+        print("No events to save")
         return
     
     try:
         # Get the marketcalendar table
+        print("Attempting to access marketcalendar table")
+        print("Table name to access: app_tables.marketcalendar")
+        
+        # Debug: Print available app tables
+        print("Available tables:")
+        for table_name in dir(app_tables):
+            if not table_name.startswith('__'):
+                print(f" - {table_name}")
+                
         calendar_table = app_tables.marketcalendar
         
         # Get existing events to check for duplicates
+        print("Fetching existing events from marketcalendar table")
         existing_events = {}
+        existing_count = 0
         for row in calendar_table.search():
             # Create a unique key for each event based on date, time, and event name
             key = f"{row['date']}_{row['time']}_{row['event']}"
             existing_events[key] = row
+            existing_count += 1
+        
+        print(f"Found {existing_count} existing events in the table")
         
         # Track statistics
         added_count = 0
@@ -222,6 +252,7 @@ def save_events_to_table(events):
                     
                     # Update if needed
                     if needs_update:
+                        print(f"Updating existing event: {event['event']} on {event['date']}")
                         # Update only fields that might change
                         existing_row['impact'] = event['impact']
                         existing_row['forecast'] = event['forecast']
@@ -231,12 +262,37 @@ def save_events_to_table(events):
                         skipped_count += 1
                 else:
                     # New event - add it
-                    calendar_table.add_row(**event)
-                    added_count += 1
+                    print(f"Adding new event: {event['event']} on {event['date']}")
+                    try:
+                        # Debug: Print event data being added
+                        print(f"Event data: {event}")
+                        
+                        # Debug: Print table schema
+                        print("Table columns:")
+                        for col in calendar_table.list_columns():
+                            print(f" - {col.name} ({col.type})")
+                        
+                        calendar_table.add_row(**event)
+                        print(f"Successfully added event {event['event']}")
+                        added_count += 1
+                    except Exception as add_error:
+                        print(f"Failed to add event {event['event']}: {add_error}")
+                        # Print the event data to help debugging
+                        print(f"Event data: {event}")
             except Exception as e:
-                logging.error(f"Error saving event {event.get('event', '')}: {e}")
+                print(f"Error saving event {event.get('event', '')}: {e}")
         
-        logging.info(f"Calendar update complete: {added_count} added, {updated_count} updated, {skipped_count} unchanged")
+        print(f"Calendar update complete: {added_count} added, {updated_count} updated, {skipped_count} unchanged")
         
     except Exception as e:
-        logging.error(f"Error saving events to table: {e}")
+        print(f"Error saving events to table: {e}")
+        # Print the table schema if possible
+        try:
+            print(f"Exception type: {type(e).__name__}")
+            print(f"Exception details: {str(e)}")
+            print("Trying to list available tables:")
+            for table_name in dir(app_tables):
+                if not table_name.startswith('__'):
+                    print(f" - {table_name}")
+        except Exception as inner_e:
+            print(f"Error while debugging table access: {inner_e}")
