@@ -4,14 +4,17 @@ from bs4 import BeautifulSoup
 import datetime
 import re
 import pytz
+from ..Shared_Functions import DB_Utils
 
-def _retrieve_market_calendar_events_from_url(url):
+def _retrieve_market_calendar_events_from_url(url, save_to_db=True, clear_existing=False):
     """
     Helper function to retrieve market calendar events from ForexFactory.com using a specific URL
     This function does the actual scraping work and is called by the public-facing functions
     
     Args:
         url (str): The ForexFactory calendar URL to scrape
+        save_to_db (bool, optional): Whether to save events to the database. Default is True.
+        clear_existing (bool, optional): Whether to clear existing events for the same dates. Default is False.
         
     Returns:
         list: A list of event dictionaries or False if an error occurred
@@ -160,6 +163,17 @@ def _retrieve_market_calendar_events_from_url(url):
                     continue
         
         print(f"Extracted {len(events)} total events from {url}")
+        
+        # Save events to the database if requested
+        if save_to_db and events:
+            print(f"Saving {len(events)} events to marketcalendar table")
+            save_results = DB_Utils.save_market_calendar_events(events, clear_existing=clear_existing)
+            
+            if save_results.get('error'):
+                print(f"Error saving events to database: {save_results['error']}")
+            else:
+                print(f"Database save results: {save_results['added']} added, {save_results['updated']} updated, {save_results['skipped']} skipped")
+        
         return events
         
     except Exception as e:
@@ -167,15 +181,21 @@ def _retrieve_market_calendar_events_from_url(url):
         return False
 
 @anvil.server.callable
-def retrieve_market_calendar_events_this_month():
+def retrieve_market_calendar_events_this_month(save_to_db=True, clear_existing=False):
     """
     Retrieves market calendar events for the current month from ForexFactory.com
-    Prints results to the console
+    
+    Args:
+        save_to_db (bool, optional): Whether to save events to the database. Default is True.
+        clear_existing (bool, optional): Whether to clear existing events for the same dates. Default is False.
+    
+    Returns:
+        list: A list of event dictionaries or False if an error occurred
     
     This function can be called via uplink for testing
     """
     url = "https://www.forexfactory.com/calendar?month=this"
-    events = _retrieve_market_calendar_events_from_url(url)
+    events = _retrieve_market_calendar_events_from_url(url, save_to_db=save_to_db, clear_existing=clear_existing)
     
     if events:
         print(f"Successfully retrieved {len(events)} events for this month")
@@ -185,15 +205,21 @@ def retrieve_market_calendar_events_this_month():
     return events
 
 @anvil.server.callable
-def retrieve_market_calendar_events_next_month():
+def retrieve_market_calendar_events_next_month(save_to_db=True, clear_existing=True):
     """
     Retrieves market calendar events for the next month from ForexFactory.com
-    Prints results to the console
+    
+    Args:
+        save_to_db (bool, optional): Whether to save events to the database. Default is True.
+        clear_existing (bool, optional): Whether to clear existing events for the same dates. Default is True.
+    
+    Returns:
+        list: A list of event dictionaries or False if an error occurred
     
     This function can be scheduled to run on the first of each month
     """
     url = "https://www.forexfactory.com/calendar?month=next"
-    events = _retrieve_market_calendar_events_from_url(url)
+    events = _retrieve_market_calendar_events_from_url(url, save_to_db=save_to_db, clear_existing=clear_existing)
     
     if events:
         print(f"Successfully retrieved {len(events)} events for next month")
@@ -205,12 +231,13 @@ def retrieve_market_calendar_events_next_month():
 @anvil.server.callable
 def retrieve_market_calendar_events():
     """
-    Legacy function that retrieves market calendar events for the next 10 days
+    Legacy function that retrieves market calendar events for the current month
     This is kept for backward compatibility
-    """
-    print("This function is deprecated. Please use retrieve_market_calendar_events_this_month() or retrieve_market_calendar_events_next_month() instead.")
     
-    # Call the function for the current month to maintain backward compatibility
+    Returns:
+        list: A list of event dictionaries or False if an error occurred
+    """
+    print("WARNING: retrieve_market_calendar_events() is deprecated. Use retrieve_market_calendar_events_this_month() instead.")
     return retrieve_market_calendar_events_this_month()
 
 # You can test these functions using the uplink with:
