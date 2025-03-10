@@ -13,12 +13,24 @@ db_schema:
       type: string
     - admin_ui: {width: 200}
       name: date
-      type: string
+      type: date
     - admin_ui: {width: 200}
       name: time
       type: string
     - admin_ui: {width: 200}
       name: event
+      type: string
+    - admin_ui: {width: 200}
+      name: currency
+      type: string
+    - admin_ui: {width: 200}
+      name: impact
+      type: string
+    - admin_ui: {width: 200}
+      name: forecast
+      type: string
+    - admin_ui: {width: 200}
+      name: previous
       type: string
     server: full
     title: MarketCalendar
