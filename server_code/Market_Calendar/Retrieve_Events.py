@@ -1,9 +1,3 @@
-import anvil.google.auth, anvil.google.drive, anvil.google.mail
-from anvil.google.drive import app_files
-import anvil.secrets
-import anvil.tables as tables
-import anvil.tables.query as q
-from anvil.tables import app_tables
 import anvil.server
 import anvil.http
 from bs4 import BeautifulSoup
@@ -12,15 +6,13 @@ import re
 import pytz
 
 @anvil.server.callable
-@anvil.server.background_task
 def retrieve_market_calendar_events():
     """
     Retrieves market calendar events from ForexFactory.com
     Filters for USD currency events for the next 10 days
-    Stores results in the marketcalendar Anvil table
+    Prints results to the console
     
-    This function is designed to be run as a scheduled task in Anvil,
-    recommended to run every Thursday at 5PM Central time.
+    This function can be called via uplink for testing
     """
     print("Starting ForexFactory calendar scraping")
     
@@ -96,10 +88,9 @@ def retrieve_market_calendar_events():
                 
                 # Extract the event data
                 try:
-                    # Check if the currency is USD
+                    # Get the currency
                     currency_cell = row.find('td', class_='calendar__cell calendar__currency')
-                    if not currency_cell or currency_cell.text.strip() != 'USD':
-                        continue
+                    currency = currency_cell.text.strip() if currency_cell else ''
                     
                     # Get the event time
                     time_cell = row.find('td', class_='calendar__cell calendar__time')
@@ -129,20 +120,6 @@ def retrieve_market_calendar_events():
                     previous_cell = row.find('td', class_='calendar__cell calendar__previous')
                     previous = previous_cell.text.strip() if previous_cell else ''
                     
-                    # Get event ID if available
-                    event_id = ''
-                    try:
-                        if event_cell:
-                            link = event_cell.find('a')
-                            if link and 'href' in link.attrs:
-                                href = link.get('href')
-                                # Extract ID from URL
-                                id_match = re.search(r'event=(\d+)', href)
-                                if id_match:
-                                    event_id = id_match.group(1)
-                    except:
-                        pass
-                    
                     # Parse the event date to check if it's within our date range
                     try:
                         event_date = datetime.datetime.strptime(current_date, "%Y-%m-%d")
@@ -152,20 +129,16 @@ def retrieve_market_calendar_events():
                         # Skip events outside our target date range
                         if event_date < now or event_date > end_date:
                             continue
-                        
-                        print(f"Found USD event: {event_name} on {current_date} at {event_time}")
                     except Exception as e:
                         print(f"Error parsing event date: {e}")
                         continue
                     
                     # Construct event data
                     event_data = {
-                        'ID': event_id,
                         'date': current_date,
                         'time': event_time,
+                        'currency': currency,
                         'event': event_name,
-                        'country': 'United States',  # Since we're filtering for USD
-                        'currency': 'USD',
                         'impact': impact,
                         'forecast': forecast,
                         'previous': previous
@@ -173,126 +146,19 @@ def retrieve_market_calendar_events():
                     
                     events.append(event_data)
                     
+                    # Print all events (not just USD)
+                    print(f"Event: {current_date} {event_time} | {currency} | {event_name} | Impact: {impact} | Forecast: {forecast} | Previous: {previous}")
+                    
                 except Exception as e:
                     print(f"Error processing event row: {e}")
                     continue
         
-        print(f"Extracted {len(events)} USD events within date range")
-        
-        # Verify if events were found before attempting to save
-        if not events:
-            print("No USD events found for the specified date range. Nothing to save.")
-            return True
-            
-        # Save events to the marketcalendar table
-        save_events_to_table(events)
-        
-        print(f"Successfully retrieved and processed {len(events)} USD market events")
-        return True
+        print(f"Extracted {len(events)} total events within date range")
+        return events
         
     except Exception as e:
         print(f"Error in retrieve_market_calendar_events: {e}")
         return False
 
-def save_events_to_table(events):
-    """
-    Save the scraped events to the marketcalendar Anvil table
-    Handles duplicate checking to avoid adding the same event twice
-    """
-    if not events:
-        print("No events to save")
-        return
-    
-    try:
-        # Get the marketcalendar table
-        print("Attempting to access marketcalendar table")
-        print("Table name to access: app_tables.marketcalendar")
-        
-        # Debug: Print available app tables
-        print("Available tables:")
-        for table_name in dir(app_tables):
-            if not table_name.startswith('__'):
-                print(f" - {table_name}")
-                
-        calendar_table = app_tables.marketcalendar
-        
-        # Get existing events to check for duplicates
-        print("Fetching existing events from marketcalendar table")
-        existing_events = {}
-        existing_count = 0
-        for row in calendar_table.search():
-            # Create a unique key for each event based on date, time, and event name
-            key = f"{row['date']}_{row['time']}_{row['event']}"
-            existing_events[key] = row
-            existing_count += 1
-        
-        print(f"Found {existing_count} existing events in the table")
-        
-        # Track statistics
-        added_count = 0
-        updated_count = 0
-        skipped_count = 0
-        
-        # Add new events and update existing ones
-        for event in events:
-            try:
-                # Create a unique key for this event
-                key = f"{event['date']}_{event['time']}_{event['event']}"
-                
-                # Check if this event already exists
-                if key in existing_events:
-                    # Event exists - update it if needed
-                    existing_row = existing_events[key]
-                    
-                    # Check if any fields need updating
-                    needs_update = False
-                    for field in ['impact', 'forecast', 'previous']:
-                        if field in event and existing_row[field] != event[field]:
-                            needs_update = True
-                    
-                    # Update if needed
-                    if needs_update:
-                        print(f"Updating existing event: {event['event']} on {event['date']}")
-                        # Update only fields that might change
-                        existing_row['impact'] = event['impact']
-                        existing_row['forecast'] = event['forecast']
-                        existing_row['previous'] = event['previous']
-                        updated_count += 1
-                    else:
-                        skipped_count += 1
-                else:
-                    # New event - add it
-                    print(f"Adding new event: {event['event']} on {event['date']}")
-                    try:
-                        # Debug: Print event data being added
-                        print(f"Event data: {event}")
-                        
-                        # Debug: Print table schema
-                        print("Table columns:")
-                        for col in calendar_table.list_columns():
-                            print(f" - {col.name} ({col.type})")
-                        
-                        calendar_table.add_row(**event)
-                        print(f"Successfully added event {event['event']}")
-                        added_count += 1
-                    except Exception as add_error:
-                        print(f"Failed to add event {event['event']}: {add_error}")
-                        # Print the event data to help debugging
-                        print(f"Event data: {event}")
-            except Exception as e:
-                print(f"Error saving event {event.get('event', '')}: {e}")
-        
-        print(f"Calendar update complete: {added_count} added, {updated_count} updated, {skipped_count} unchanged")
-        
-    except Exception as e:
-        print(f"Error saving events to table: {e}")
-        # Print the table schema if possible
-        try:
-            print(f"Exception type: {type(e).__name__}")
-            print(f"Exception details: {str(e)}")
-            print("Trying to list available tables:")
-            for table_name in dir(app_tables):
-                if not table_name.startswith('__'):
-                    print(f" - {table_name}")
-        except Exception as inner_e:
-            print(f"Error while debugging table access: {inner_e}")
+# You can test this function using the uplink with:
+# anvil.server.call('retrieve_market_calendar_events')
