@@ -7,7 +7,19 @@ db_schema:
     title: Key_Levels_ES
   marketcalendar:
     client: none
-    columns: []
+    columns:
+    - admin_ui: {width: 200}
+      name: ID
+      type: string
+    - admin_ui: {width: 200}
+      name: date
+      type: string
+    - admin_ui: {width: 200}
+      name: time
+      type: string
+    - admin_ui: {width: 200}
+      name: event
+      type: string
     server: full
     title: MarketCalendar
   newsletter_es:
@@ -22,7 +34,13 @@ db_schema:
     title: Newsletter_Flow
   vdlines:
     client: none
-    columns: []
+    columns:
+    - admin_ui: {width: 200}
+      name: Price
+      type: number
+    - admin_ui: {width: 200}
+      name: Type
+      type: string
     server: full
     title: VDLines
 dependencies: []
