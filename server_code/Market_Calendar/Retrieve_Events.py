@@ -186,10 +186,8 @@ def _retrieve_market_calendar_events_from_url(url, save_to_db=True, clear_existi
                     time_cell = row.find('td', class_='calendar__cell calendar__time')
                     event_time = time_cell.text.strip() if time_cell else ''
                     
-                    # If time is empty, use the previous time
-                    if not event_time and last_time:
-                        event_time = last_time
-                        print(f"Using previous time '{event_time}' for event with missing time")
+                    # Important: Do NOT attempt to fill empty times during scraping
+                    # We'll handle this properly during post-processing
                     
                     # Convert the time to Chicago time if it's a valid time
                     if event_time and event_time != '' and ':' in event_time:
@@ -402,6 +400,7 @@ def _fill_missing_times(events):
         events_by_date[date].append(event)
     
     # Process each date's events to fill in missing times
+    filled_count = 0
     for date, day_events in events_by_date.items():
         # Sort by original index to maintain original order
         day_events.sort(key=lambda e: e['_index'])
@@ -413,7 +412,7 @@ def _fill_missing_times(events):
                 if last_time:
                     print(f"Filling in missing time for event {event['event']} on {date} with {last_time}")
                     event['time'] = last_time
-                    # No need for timezone conversion - the last_time was already converted
+                    filled_count += 1
             else:
                 last_time = event['time']
     
@@ -427,12 +426,17 @@ def _fill_missing_times(events):
     # Sort back to original order
     result.sort(key=lambda e: events.index(e))
     
-    print(f"Filled in times for events")
+    print(f"Filled in times for {filled_count} events")
     
     # If events were already saved to the database, update them there
-    if any(e.get('_saved_to_db', False) for e in events):
+    update_db = any(e.get('_saved_to_db', False) for e in events)
+    if update_db:
         print("Updating events in database with filled times...")
         DB_Utils.save_market_calendar_events(result, clear_existing=False)
+    elif filled_count > 0:
+        # Mark that we need to save these filled times to the database
+        for event in result:
+            event['_needs_time_update'] = True
     
     return result
 
