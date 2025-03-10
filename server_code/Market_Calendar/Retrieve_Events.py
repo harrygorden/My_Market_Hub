@@ -5,29 +5,25 @@ import datetime
 import re
 import pytz
 
-@anvil.server.callable
-def retrieve_market_calendar_events():
+def _retrieve_market_calendar_events_from_url(url):
     """
-    Retrieves market calendar events from ForexFactory.com
-    Filters for events for the next 10 days
-    Prints results to the console
+    Helper function to retrieve market calendar events from ForexFactory.com using a specific URL
+    This function does the actual scraping work and is called by the public-facing functions
     
-    This function can be called via uplink for testing
+    Args:
+        url (str): The ForexFactory calendar URL to scrape
+        
+    Returns:
+        list: A list of event dictionaries or False if an error occurred
     """
-    print("Starting ForexFactory calendar scraping")
+    print(f"Starting ForexFactory calendar scraping from: {url}")
     
     try:
         # Get the current date and time in Central Time
         central_tz = pytz.timezone('US/Central')
         now = datetime.datetime.now(central_tz)
         
-        # Calculate end date (10 days from now)
-        end_date = now + datetime.timedelta(days=10)
-        
-        print(f"Retrieving events from {now.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
-        
         # Fetch the ForexFactory calendar page
-        url = "https://www.forexfactory.com/calendar"
         print(f"Sending HTTP request to {url}")
         
         # Get the response and handle the StreamingMedia object properly
@@ -143,20 +139,6 @@ def retrieve_market_calendar_events():
                     previous_cell = row.find('td', class_='calendar__cell calendar__previous')
                     previous = previous_cell.text.strip() if previous_cell else ''
                     
-                    # Parse the event date to check if it's within our date range
-                    try:
-                        # Create a naive datetime object first
-                        event_date_naive = datetime.datetime.strptime(current_date, "%Y-%m-%d")
-                        # Make it timezone-aware with the same timezone as 'now'
-                        event_date = central_tz.localize(event_date_naive)
-                        
-                        # Skip events outside our target date range - both now timezone-aware
-                        if event_date < now or event_date > end_date:
-                            continue
-                    except Exception as e:
-                        print(f"Error checking event date range: {e}")
-                        continue
-                    
                     # Construct event data
                     event_data = {
                         'date': current_date,
@@ -170,19 +152,67 @@ def retrieve_market_calendar_events():
                     
                     events.append(event_data)
                     
-                    # Print all events
+                    # Print the event
                     print(f"Event: {current_date} {event_time} | {currency} | {event_name} | Impact: {impact} | Forecast: {forecast} | Previous: {previous}")
                     
                 except Exception as e:
                     print(f"Error processing event row: {e}")
                     continue
         
-        print(f"Extracted {len(events)} total events within date range")
+        print(f"Extracted {len(events)} total events from {url}")
         return events
         
     except Exception as e:
-        print(f"Error in retrieve_market_calendar_events: {e}")
+        print(f"Error in _retrieve_market_calendar_events_from_url: {e}")
         return False
 
-# You can test this function using the uplink with:
-# anvil.server.call('retrieve_market_calendar_events')
+@anvil.server.callable
+def retrieve_market_calendar_events_this_month():
+    """
+    Retrieves market calendar events for the current month from ForexFactory.com
+    Prints results to the console
+    
+    This function can be called via uplink for testing
+    """
+    url = "https://www.forexfactory.com/calendar?month=this"
+    events = _retrieve_market_calendar_events_from_url(url)
+    
+    if events:
+        print(f"Successfully retrieved {len(events)} events for this month")
+    else:
+        print("Failed to retrieve events for this month")
+    
+    return events
+
+@anvil.server.callable
+def retrieve_market_calendar_events_next_month():
+    """
+    Retrieves market calendar events for the next month from ForexFactory.com
+    Prints results to the console
+    
+    This function can be scheduled to run on the first of each month
+    """
+    url = "https://www.forexfactory.com/calendar?month=next"
+    events = _retrieve_market_calendar_events_from_url(url)
+    
+    if events:
+        print(f"Successfully retrieved {len(events)} events for next month")
+    else:
+        print("Failed to retrieve events for next month")
+    
+    return events
+
+@anvil.server.callable
+def retrieve_market_calendar_events():
+    """
+    Legacy function that retrieves market calendar events for the next 10 days
+    This is kept for backward compatibility
+    """
+    print("This function is deprecated. Please use retrieve_market_calendar_events_this_month() or retrieve_market_calendar_events_next_month() instead.")
+    
+    # Call the function for the current month to maintain backward compatibility
+    return retrieve_market_calendar_events_this_month()
+
+# You can test these functions using the uplink with:
+# anvil.server.call('retrieve_market_calendar_events_this_month')
+# anvil.server.call('retrieve_market_calendar_events_next_month')
