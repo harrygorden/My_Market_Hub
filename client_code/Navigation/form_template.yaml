@@ -49,5 +49,5 @@ is_package: true
 slots:
   content_slot:
     index: 0
-    set_layout_properties: {grid_position: 'UPZZLX,OXEZKU'}
+    set_layout_properties: {full_width_row: false, grid_position: 'UPZZLX,OXEZKU'}
     target: {name: content_panel, type: container}
