@@ -114,28 +114,44 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
   def update_countdown_display(self, **event_args):
     """Update the countdown display with current time remaining"""
     if not self.next_high_impact_event:
+      try:
+        # Try to refresh the event data if we don't have it
+        self.update_high_impact_countdown()
+        # If still no event after refresh, show message
+        if not self.next_high_impact_event:
+          self.rich_text_high_impact_event_countdown.content = "<p>No upcoming high impact events found.</p>"
+      except Exception as e:
+        print(f"Error refreshing countdown: {e}")
       return
     
     try:
-      # Get current time in UTC
+      # Get current time
       now = datetime.datetime.now()
       
       # Parse event datetime
-      event_datetime_str = f"{self.next_high_impact_event['date']} {self.next_high_impact_event['time']}"
+      event_date_str = self.next_high_impact_event.get('date', '')
+      event_time_str = self.next_high_impact_event.get('time', '')
+      
+      if not event_date_str or not event_time_str:
+        self.rich_text_high_impact_event_countdown.content = (
+          f"<p>Next high impact event: {self.next_high_impact_event.get('event', 'Unknown event')}</p>"
+          f"<p>(Missing date or time information)</p>"
+        )
+        return
       
       # Try to parse datetime in different formats
       try:
         # Try 12-hour format first (8:30 AM)
-        event_datetime = datetime.datetime.strptime(event_datetime_str, "%Y-%m-%d %I:%M %p")
+        event_datetime = datetime.datetime.strptime(f"{event_date_str} {event_time_str}", "%Y-%m-%d %I:%M %p")
       except ValueError:
         try:
           # Try 24-hour format (08:30)
-          event_datetime = datetime.datetime.strptime(event_datetime_str, "%Y-%m-%d %H:%M")
+          event_datetime = datetime.datetime.strptime(f"{event_date_str} {event_time_str}", "%Y-%m-%d %H:%M")
         except ValueError:
           # If all parsing fails, show error message
           self.rich_text_high_impact_event_countdown.content = (
-            f"<p>Next high impact event: {self.next_high_impact_event['event']} "
-            f"on {self.next_high_impact_event['date']} at {self.next_high_impact_event['time']}</p>"
+            f"<p>Next high impact event: {self.next_high_impact_event.get('event', 'Unknown event')} "
+            f"on {event_date_str} at {event_time_str}</p>"
             f"<p>(Unable to calculate countdown)</p>"
           )
           return
@@ -146,8 +162,8 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
       # Check if event is in the past
       if time_diff.total_seconds() <= 0:
         self.rich_text_high_impact_event_countdown.content = (
-          f"<p><strong>{self.next_high_impact_event['event']}</strong> at "
-          f"{self.next_high_impact_event['time']} has already occurred.</p>"
+          f"<p><strong>{self.next_high_impact_event.get('event', 'Event')}</strong> at "
+          f"{event_time_str} has already occurred.</p>"
           f"<p>Please refresh to see the next upcoming high impact event.</p>"
         )
         # Update the next event (this will refresh at most once a minute to avoid server spam)
@@ -157,12 +173,15 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
       
       # Calculate hours, minutes and seconds
       total_seconds = int(time_diff.total_seconds())
-      hours = total_seconds // 3600
+      days = total_seconds // 86400
+      hours = (total_seconds % 86400) // 3600
       minutes = (total_seconds % 3600) // 60
       seconds = total_seconds % 60
       
       # Format countdown string
-      if hours > 0:
+      if days > 0:
+        countdown_text = f"{days} days, {hours} hours, {minutes} minutes, and {seconds} seconds"
+      elif hours > 0:
         countdown_text = f"{hours} hours, {minutes} minutes, and {seconds} seconds"
       elif minutes > 0:
         countdown_text = f"{minutes} minutes and {seconds} seconds"
@@ -170,15 +189,16 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
         countdown_text = f"{seconds} seconds"
       
       # Update the rich text content
+      event_name = self.next_high_impact_event.get('event', 'Unknown event')
       self.rich_text_high_impact_event_countdown.content = (
         f"<p>There are <strong>{countdown_text}</strong> until</p>"
-        f"<p><strong>{self.next_high_impact_event['event']}</strong> at "
-        f"{self.next_high_impact_event['time']},</p>"
+        f"<p><strong>{event_name}</strong> at "
+        f"{event_time_str},</p>"
         f"<p>the next upcoming high impact market event.</p>"
       )
     except Exception as e:
-      print(f"Error updating countdown: {e}")
-      self.rich_text_high_impact_event_countdown.content = "<p>Error updating countdown.</p>"
+      print(f"Error updating countdown: {type(e).__name__} - {str(e)}")
+      self.rich_text_high_impact_event_countdown.content = f"<p>Error updating countdown: {type(e).__name__}</p>"
   
   def refresh_events(self):
     """Refresh the events grid based on selected filters"""
