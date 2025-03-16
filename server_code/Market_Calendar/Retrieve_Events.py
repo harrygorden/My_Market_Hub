@@ -112,45 +112,49 @@ def _parse_event_time(event_time, current_date, site_timezone):
 
 def _extract_impact_level(impact_span):
     """
-    Extract impact level from impactTitle attribute or CSS class
-    Returns one of: "High", "Medium", "Low", or "" (empty string if not found)
+    Extract impact level from ForexFactory HTML span element
+    Returns "High", "Medium", "Low", or "" (empty string if not found)
     """
     if not impact_span:
         return ""
     
-    # First try to get the impact level from the impactTitle attribute
+    # Check the title attribute which contains text like "High Impact Expected"
     impact_title = impact_span.get('title', '')
-    if impact_title:
-        if "high impact" in impact_title.lower():
-            return "High"
-        elif "medium impact" in impact_title.lower():
-            return "Medium"
-        elif "low impact" in impact_title.lower():
-            return "Low"
+    print(f"Processing impact span with title: '{impact_title}'")
     
-    # Check the data-impact attribute if it exists
-    data_impact = impact_span.get('data-impact', '')
-    if data_impact:
-        if data_impact.lower() == "high":
-            return "High"
-        elif data_impact.lower() == "medium":
-            return "Medium"
-        elif data_impact.lower() == "low":
-            return "Low"
+    # Match exact wording from ForexFactory
+    if impact_title == "High Impact Expected":
+        return "High"
+    elif impact_title == "Medium Impact Expected":
+        return "Medium"
+    elif impact_title == "Low Impact Expected":
+        return "Low"
     
-    # As a fallback, try to extract from the class name
-    if 'impact' in impact_span.get('class', [])[0]:
-        impact_class = impact_span.get('class', [])[0]
-        impact_match = re.search(r'impact--(.*)', impact_class)
-        if impact_match:
-            impact = impact_match.group(1)
-            if impact.lower() == "high":
-                return "High"
-            elif impact.lower() == "medium":
-                return "Medium"
-            elif impact.lower() == "low":
-                return "Low"
+    # Fallback: Check for partial matches in case the exact wording changes
+    if "high impact" in impact_title.lower():
+        return "High"
+    elif "medium impact" in impact_title.lower() or "med impact" in impact_title.lower():
+        return "Medium"
+    elif "low impact" in impact_title.lower():
+        return "Low"
     
+    # If title doesn't have impact info, check CSS classes
+    # ForexFactory uses classes like icon--ff-impact-red for high impact
+    class_list = impact_span.get('class', [])
+    if not isinstance(class_list, list):
+        class_list = [class_list]
+    
+    class_str = ' '.join([str(cls) for cls in class_list])
+    print(f"Impact span classes: '{class_str}'")
+    
+    if "ff-impact-red" in class_str:
+        return "High"
+    elif "ff-impact-orange" in class_str:
+        return "Medium" 
+    elif "ff-impact-yel" in class_str:
+        return "Low"
+    
+    print(f"Could not determine impact from: {impact_span}")
     return ""
 
 def _extract_calendar_events(response_text):
@@ -230,9 +234,27 @@ def _extract_calendar_events(response_text):
                 impact_cell = row.find('td', class_='calendar__cell calendar__impact')
                 impact = ""
                 if impact_cell:
-                    impact_span = impact_cell.find('span')
+                    # Extract the impact span element - this contains the impact indicator
+                    # It should have a title attribute like "High Impact Expected"
+                    impact_span = impact_cell.find('span', class_=lambda c: c and ('icon--ff-impact' in c or 'universal-impact' in c))
+                    
+                    if not impact_span:
+                        # Try a more general approach if the specific class search fails
+                        impact_span = impact_cell.find('span')
+                    
                     if impact_span:
+                        # Log the raw span for debugging
+                        print(f"Found impact span: {impact_span}")
+                        
+                        # Use our helper function to determine impact level
                         impact = _extract_impact_level(impact_span)
+                        
+                        # Make sure impact is capitalized properly
+                        if impact:
+                            impact = impact.capitalize()
+                
+                # Log the final impact for debugging
+                print(f"Final impact for '{event_name}': '{impact}'")
                 
                 # Get forecast value
                 forecast_cell = row.find('td', class_='calendar__cell calendar__forecast')
