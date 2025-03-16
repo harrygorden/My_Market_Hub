@@ -377,32 +377,52 @@ def get_market_calendar_events_with_timezone(start_date, end_date, target_timezo
         # Get the pytz timezone object
         tz = pytz.timezone(timezone_map[target_timezone])
         
-        # Get events from the database
-        events = app_tables.marketcalendar.search(
-            q.between(app_tables.marketcalendar.date, start_date, end_date)
-        )
+        # Debug column names in the marketcalendar table
+        columns = [col.name for col in app_tables.marketcalendar.list_columns()]
+        print(f"Columns in marketcalendar table: {columns}")
+        
+        # Get events from the database - use direct column reference instead of attribute access
+        try:
+            # Try with attribute access first for backwards compatibility
+            events_list = list(app_tables.marketcalendar.search(
+                q.between(app_tables.marketcalendar.date, start_date, end_date)
+            ))
+            print("Query successful using attribute access")
+        except AttributeError:
+            # If that fails, try with dictionary access
+            print("Attribute access failed, trying dictionary access")
+            events_list = list(app_tables.marketcalendar.search(
+                q.between("date", start_date, end_date)
+            ))
         
         # Debug output - how many events were found?
-        events_list = list(events)  # Convert to list to force evaluation
         print(f"Found {len(events_list)} events between {start_date} and {end_date}")
         
         # Also print the first few events for debugging
         for i, event_row in enumerate(events_list[:3]):  # Print first 3 events
-            print(f"Event {i+1}: {event_row['date']} - {event_row['time']} - {event_row['event']}")
+            print(f"Event {i+1}: {event_row}")
+            # Print keys of the first event to understand its structure
+            if i == 0 and len(events_list) > 0:
+                print(f"Keys of first event: {list(event_row.keys())}")
         
         # Convert to list of dictionaries with timezone conversion
         event_list = []
         for event_row in events_list:
             # First create the base event dictionary with data from database
-            event = {
-                'date': event_row['date'].strftime('%Y-%m-%d'),
-                'time': event_row['time'],
-                'event': event_row['event'],
-                'currency': event_row['currency'],
-                'impact': event_row['impact'],
-                'forecast': event_row['forecast'],
-                'previous': event_row['previous']
-            }
+            try:
+                event = {
+                    'date': event_row['date'].strftime('%Y-%m-%d'),
+                    'time': event_row['time'],
+                    'event': event_row['event'],
+                    'currency': event_row.get('currency', ''),
+                    'impact': event_row.get('impact', ''),
+                    'forecast': event_row.get('forecast', ''),
+                    'previous': event_row.get('previous', '')
+                }
+            except (KeyError, AttributeError) as e:
+                print(f"Error creating event dict: {e}")
+                print(f"Event row keys: {list(event_row.keys())}")
+                continue
             
             # Convert time if target timezone is not UTC
             if target_timezone != "UTC" and event['time'] and event['date']:
