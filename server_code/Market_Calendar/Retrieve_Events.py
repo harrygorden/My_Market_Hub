@@ -56,112 +56,226 @@ def _extract_calendar_events(response_text):
     """
     events = []
     
-    # Find the JavaScript data object in the HTML
-    calendar_data_pattern = r'window\.calendarComponentStates\[\d+\]\s*=\s*(\{.*?days:\s*\[.*?\]\s*,\s*time:.*?\})'
-    calendar_data_match = re.search(calendar_data_pattern, response_text, re.DOTALL)
-    
-    if not calendar_data_match:
-        print("Could not find calendar data in the response")
-        return events
-    
-    # Extract the days array which contains all events
-    days_pattern = r'days:\s*(\[.*?\])'
-    days_match = re.search(days_pattern, calendar_data_match.group(1), re.DOTALL)
-    
-    if not days_match:
-        print("Could not find days array in calendar data")
-        return events
-    
-    # Parse the JavaScript object (clean it up for Python)
-    days_json = days_match.group(1)
-    # Convert JavaScript to valid JSON
-    days_json = re.sub(r'([{,])\s*(\w+):', r'\1"\2":', days_json)  # Add quotes to keys
-    days_json = re.sub(r':\s*([^",\s\[\{][^",\]\}]*?)([,\}\]])', r':"\1"\2', days_json)  # Add quotes to unquoted values
-    days_json = re.sub(r'\/\/', r'/', days_json)  # Fix escaped slashes
-    
     try:
-        days_data = json.loads(days_json)
-    except json.JSONDecodeError as e:
-        print(f"Error parsing calendar JSON data: {e}")
-        # Try a more aggressive approach - use regex to extract individual events
+        print("\nExtracting calendar events from JavaScript data")
+        
+        # Find the JavaScript data object in the HTML
+        calendar_data_pattern = r'window\.calendarComponentStates\[\d+\]\s*=\s*(\{.*?days:\s*\[.*?\]\s*,\s*time:.*?\});'
+        calendar_data_match = re.search(calendar_data_pattern, response_text, re.DOTALL)
+        
+        if not calendar_data_match:
+            print("Could not find calendar data in the response")
+            return _extract_events_with_regex(response_text)
+        
+        print("Found calendar data in JavaScript")
+        
+        # Extract the days array which contains all events
+        days_pattern = r'days:\s*(\[.*?\])'
+        days_match = re.search(days_pattern, calendar_data_match.group(1), re.DOTALL)
+        
+        if not days_match:
+            print("Could not find days array in calendar data")
+            return _extract_events_with_regex(response_text)
+        
+        print("Found days array in calendar data")
+        
+        # Parse the JavaScript object (clean it up for Python)
+        days_json = days_match.group(1)
+        
+        # Handle problematic JSON content in multiple steps
+        # Step 1: Add quotes to keys
+        days_json = re.sub(r'([{,])\s*(\w+):', r'\1"\2":', days_json)
+        
+        # Step 2: Fix escaped slashes
+        days_json = days_json.replace('\\/', '/')
+        
+        # Step 3: Fix any unquoted values, carefully avoiding arrays and objects
+        days_json = re.sub(r':\s*([^",\s\[\{][^",\]\}]*?)([,\}\]])', r':"\1"\2', days_json)
+        
+        # Step 4: Fix boolean values to be proper JSON
+        days_json = re.sub(r':(\s*)(true|false)([,\}\]])', r':\1\2\3', days_json)
+        
+        # Step 5: Handle the "firstInDay:true" pattern specifically
+        days_json = re.sub(r'"firstInDay":true', r'"firstInDay":true', days_json)
+        days_json = re.sub(r'"firstInDay":false', r'"firstInDay":false', days_json)
+        
+        # Step 6: Try to fix any other issues that might cause JSON parsing to fail
+        # Remove any trailing commas in arrays or objects
+        days_json = re.sub(r',(\s*[\]\}])', r'\1', days_json)
+        
+        print(f"Processing JSON data...")
+        
+        try:
+            days_data = json.loads(days_json)
+            print("Successfully parsed days JSON data")
+        except json.JSONDecodeError as e:
+            print(f"Error parsing days JSON: {e}")
+            # Fall back to regex approach
+            return _extract_events_with_regex(response_text)
+        
+        # Process each day's events
+        for day_data in days_data:
+            date_text = re.sub(r'<[^>]+>', '', day_data.get('date', ''))  # Remove HTML tags
+            date_text = date_text.strip()
+            day_date = None
+            
+            # Try to parse the date
+            try:
+                # Convert to a date object
+                day_date = datetime.datetime.fromtimestamp(int(day_data.get('dateline', 0)))
+                print(f"Processing date: {day_date.strftime('%Y-%m-%d')}")
+            except (ValueError, TypeError):
+                print(f"Could not parse date from: {date_text}")
+                continue
+            
+            # Process events for this day
+            day_events = day_data.get('events', [])
+            print(f"Found {len(day_events)} events for this day")
+            
+            for event_data in day_events:
+                try:
+                    # Extract basic event information
+                    event_name = event_data.get('name', '')
+                    country = event_data.get('country', '')
+                    currency = event_data.get('currency', '')
+                    time_label = event_data.get('timeLabel', '')
+                    
+                    # Skip non-USD events if configured to do so
+                    if currency != USD_CURRENCY:
+                        continue
+                    
+                    # Convert impact class to our standard format
+                    impact_class = event_data.get('impactClass', '')
+                    impact_title = event_data.get('impactTitle', '')
+                    impact = _map_impact_level(impact_class, impact_title)
+                    
+                    # Get forecast and previous values
+                    forecast = event_data.get('forecast', '')
+                    previous = event_data.get('previous', '')
+                    
+                    # Create event datetime (combining date with time)
+                    event_datetime = day_date
+                    if time_label:
+                        # Parse the time (e.g., "12:30pm") and add it to the date
+                        try:
+                            # ForexFactory uses 12-hour format with am/pm
+                            time_parts = re.match(r'(\d+):(\d+)(am|pm)', time_label.lower())
+                            if time_parts:
+                                hour = int(time_parts.group(1))
+                                minute = int(time_parts.group(2))
+                                am_pm = time_parts.group(3)
+                                
+                                # Convert to 24-hour format
+                                if am_pm == 'pm' and hour < 12:
+                                    hour += 12
+                                elif am_pm == 'am' and hour == 12:
+                                    hour = 0
+                                
+                                # Update the event datetime
+                                event_datetime = event_datetime.replace(hour=hour, minute=minute)
+                        except Exception as e:
+                            print(f"Error parsing time '{time_label}' for event '{event_name}': {e}")
+                    
+                    # Build the event object - Use 'event' as the key instead of 'name' for compatibility
+                    event = {
+                        'date': event_datetime.strftime('%Y-%m-%d'),
+                        'time': event_datetime.strftime('%H:%M'),
+                        'currency': currency,
+                        'event': event_name,  # Changed from 'name' to 'event' for compatibility
+                        'impact': impact,
+                        'forecast': forecast,
+                        'previous': previous,
+                        'source': 'ForexFactory'
+                    }
+                    
+                    print(f"Extracted event: {event_name} at {time_label} with impact {impact}")
+                    events.append(event)
+                    
+                except Exception as e:
+                    print(f"Error processing event: {e}")
+                    continue
+        
+    except Exception as e:
+        print(f"Exception in calendar extraction: {e}")
+        # Fall back to regex approach
         return _extract_events_with_regex(response_text)
     
-    # Process each day's events
-    for day_data in days_data:
-        date_text = re.sub(r'<[^>]+>', '', day_data.get('date', ''))  # Remove HTML tags
-        date_text = date_text.strip()
-        day_date = None
-        
-        # Try to parse the date
-        try:
-            # Convert to a date object
-            day_date = datetime.datetime.fromtimestamp(int(day_data.get('dateline', 0)))
-        except (ValueError, TypeError):
-            print(f"Could not parse date from: {date_text}")
-            continue
-        
-        # Process events for this day
-        day_events = day_data.get('events', [])
-        for event_data in day_events:
-            try:
-                # Extract basic event information
-                event_name = event_data.get('name', '')
-                country = event_data.get('country', '')
-                currency = event_data.get('currency', '')
-                time_label = event_data.get('timeLabel', '')
-                
-                # Convert impact class to our standard format
-                impact_class = event_data.get('impactClass', '')
-                impact_title = event_data.get('impactTitle', '')
-                impact = _map_impact_level(impact_class, impact_title)
-                
-                # Get forecast and previous values
-                forecast = event_data.get('forecast', '')
-                previous = event_data.get('previous', '')
-                
-                # Create event datetime (combining date with time)
-                event_datetime = day_date
-                if time_label:
-                    # Parse the time (e.g., "12:30pm") and add it to the date
-                    try:
-                        # ForexFactory uses 12-hour format with am/pm
-                        time_parts = re.match(r'(\d+):(\d+)(am|pm)', time_label.lower())
-                        if time_parts:
-                            hour = int(time_parts.group(1))
-                            minute = int(time_parts.group(2))
-                            am_pm = time_parts.group(3)
-                            
-                            # Convert to 24-hour format
-                            if am_pm == 'pm' and hour < 12:
-                                hour += 12
-                            elif am_pm == 'am' and hour == 12:
-                                hour = 0
-                            
-                            # Update the event datetime
-                            event_datetime = event_datetime.replace(hour=hour, minute=minute)
-                    except Exception as e:
-                        print(f"Error parsing time '{time_label}' for event '{event_name}': {e}")
-                
-                # Build the event object
-                event = {
-                    'name': event_name,
-                    'date': event_datetime.strftime('%Y-%m-%d'),
-                    'time': event_datetime.strftime('%H:%M'),
-                    'country': country,
-                    'currency': currency,
-                    'impact': impact,
-                    'forecast': forecast,
-                    'previous': previous,
-                    'source': 'ForexFactory'
-                }
-                
-                print(f"Extracted event: {event_name} at {time_label} with impact {impact}")
-                events.append(event)
-                
-            except Exception as e:
-                print(f"Error processing event: {e}")
-                continue
+    print(f"Extracted {len(events)} total events")
+    return events
+
+def _extract_events_with_regex(response_text):
+    """Fallback method to extract events using regex if JSON parsing fails"""
+    print("Using regex fallback method to extract events")
+    events = []
     
+    # Look for individual event objects in the JavaScript
+    event_pattern = r'"id":\s*(\d+).*?"name":\s*"([^"]+)".*?"country":\s*"([^"]+)".*?"currency":\s*"([^"]+)".*?"impactClass":\s*"([^"]+)".*?"timeLabel":\s*"([^"]+)".*?"previous":\s*"([^"]*)".*?"forecast":\s*"([^"]*)".*?"date":\s*"([^"]+)"'
+    
+    event_matches = list(re.finditer(event_pattern, response_text, re.DOTALL))
+    print(f"Found {len(event_matches)} event matches using regex")
+    
+    for match in event_matches:
+        try:
+            event_id, name, country, currency, impact_class, time_label, previous, forecast, date_str = match.groups()
+            
+            # Skip non-USD events if configured to do so
+            if currency != USD_CURRENCY:
+                continue
+            
+            # Parse the date string
+            try:
+                date_parts = date_str.split(', ')
+                if len(date_parts) == 2:
+                    date_obj = datetime.datetime.strptime(date_parts[1], '%Y')  # Just get the year
+                    month_day = date_parts[0].split(' ')
+                    if len(month_day) == 2:
+                        month = month_day[0]
+                        day = month_day[1]
+                        # Convert month name to number
+                        month_num = {
+                            'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
+                            'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
+                        }.get(month, 1)
+                        
+                        date_obj = date_obj.replace(month=month_num, day=int(day))
+                else:
+                    # If date parsing fails, use today's date as a fallback
+                    date_obj = datetime.datetime.now()
+            except Exception:
+                date_obj = datetime.datetime.now()
+            
+            # Map impact level
+            impact = _map_impact_level(impact_class, "")
+            
+            # Try to parse time label
+            event_time = time_label
+            if re.match(r'(\d+):(\d+)(am|pm)', time_label.lower()):
+                try:
+                    # Parse 12-hour format
+                    time_obj = datetime.datetime.strptime(time_label, '%I:%M%p')
+                    event_time = time_obj.strftime('%H:%M')
+                except:
+                    # Keep original if parsing fails
+                    pass
+            
+            # Create the event - Use 'event' as the key instead of 'name' for compatibility
+            event = {
+                'date': date_obj.strftime('%Y-%m-%d'),
+                'time': event_time,
+                'currency': currency,
+                'event': name,  # Changed from 'name' to 'event' for compatibility 
+                'impact': impact,
+                'forecast': forecast,
+                'previous': previous,
+                'source': 'ForexFactory'
+            }
+            
+            print(f"Extracted event via regex: {name} at {time_label} with impact {impact}")
+            events.append(event)
+        except Exception as e:
+            print(f"Error processing regex match: {e}")
+    
+    print(f"Extracted {len(events)} total events via regex")
     return events
 
 def _map_impact_level(impact_class, impact_title):
@@ -174,58 +288,6 @@ def _map_impact_level(impact_class, impact_title):
         return 'Low'
     else:
         return ''
-
-def _extract_events_with_regex(response_text):
-    """Fallback method to extract events using regex if JSON parsing fails"""
-    events = []
-    
-    # Look for individual event objects in the JavaScript
-    event_pattern = r'"id":\s*(\d+).*?"name":\s*"([^"]+)".*?"country":\s*"([^"]+)".*?"currency":\s*"([^"]+)".*?"impactClass":\s*"([^"]+)".*?"timeLabel":\s*"([^"]+)".*?"previous":\s*"([^"]*)".*?"forecast":\s*"([^"]*)".*?"date":\s*"([^"]+)"'
-    
-    for match in re.finditer(event_pattern, response_text, re.DOTALL):
-        event_id, name, country, currency, impact_class, time_label, previous, forecast, date_str = match.groups()
-        
-        # Parse the date string
-        try:
-            date_parts = date_str.split(', ')
-            if len(date_parts) == 2:
-                date_obj = datetime.datetime.strptime(date_parts[1], '%Y')  # Just get the year
-                month_day = date_parts[0].split(' ')
-                if len(month_day) == 2:
-                    month = month_day[0]
-                    day = month_day[1]
-                    # Convert month name to number
-                    month_num = {
-                        'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
-                        'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
-                    }.get(month, 1)
-                    
-                    date_obj = date_obj.replace(month=month_num, day=int(day))
-            else:
-                # If date parsing fails, use today's date as a fallback
-                date_obj = datetime.datetime.now()
-        except Exception:
-            date_obj = datetime.datetime.now()
-        
-        # Map impact level
-        impact = _map_impact_level(impact_class, "")
-        
-        # Create the event
-        event = {
-            'name': name,
-            'date': date_obj.strftime('%Y-%m-%d'),
-            'time': time_label,  # Keep original time format as fallback
-            'country': country,
-            'currency': currency,
-            'impact': impact,
-            'forecast': forecast,
-            'previous': previous,
-            'source': 'ForexFactory'
-        }
-        
-        events.append(event)
-    
-    return events
 
 def _fetch_and_save_events(url):
     """
