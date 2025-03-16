@@ -66,7 +66,37 @@ runtime_options:
   server_spec: {base: python310-standard}
   server_version: python3-sandbox
   version: 3
-scheduled_tasks: []
+scheduled_tasks:
+- job_id: RXQKVJZK
+  task_name: bg_fetch_next_month_events
+  time_spec:
+    at: {day: 1, hour: 3, minute: 0}
+    every: month
+    n: 1
+- job_id: LMRCBZWV
+  task_name: bg_fetch_this_month_events
+  time_spec:
+    at: {day: 1, hour: 3, minute: 5}
+    every: month
+    n: 1
+- job_id: SPBOWKSC
+  task_name: bg_fetch_next_week_events
+  time_spec:
+    at: {day: 1, hour: 3, minute: 10}
+    every: week
+    n: 1
+- job_id: ZPFADYVN
+  task_name: bg_fetch_this_week_events
+  time_spec:
+    at: {day: 1, hour: 3, minute: 15}
+    every: week
+    n: 1
+- job_id: YDEXCTBO
+  task_name: bg_fetch_tomorrow_events
+  time_spec:
+    at: {hour: 2, minute: 0}
+    every: day
+    n: 1
 secrets:
   ES_Newsletter_Sender:
     type: secret
