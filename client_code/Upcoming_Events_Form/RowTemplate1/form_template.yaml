@@ -35,5 +35,7 @@ components:
   name: previous_label
   properties: {foreground: 'theme:On Background', text: '', visible: true}
   type: Label
-container: {type: DataRowPanel}
+container:
+  properties: {align: center}
+  type: DataRowPanel
 is_package: true
