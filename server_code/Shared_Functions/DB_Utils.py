@@ -333,3 +333,90 @@ def get_market_calendar_events_by_impact(impact_level, start_date=None, end_date
     except Exception as e:
         print(f"Error retrieving market calendar events by impact: {e}")
         return []
+
+@anvil.server.callable
+def get_market_calendar_events_with_timezone(start_date, end_date, target_timezone="UTC"):
+    """
+    Retrieve market calendar events for a specific date range and convert to specified timezone
+    
+    Args:
+        start_date (datetime.date): Start date (inclusive)
+        end_date (datetime.date): End date (inclusive)
+        target_timezone (str): Target timezone (UTC, Eastern, Central, Mountain, Pacific)
+        
+    Returns:
+        list: List of event dictionaries with times converted to target timezone
+    """
+    try:
+        import pytz
+        
+        # Define timezone mappings
+        timezone_map = {
+            "Eastern": "US/Eastern",
+            "Central": "US/Central",
+            "Mountain": "US/Mountain",
+            "Pacific": "US/Pacific",
+            "UTC": "UTC"
+        }
+        
+        # Get the pytz timezone object
+        tz = pytz.timezone(timezone_map[target_timezone])
+        
+        # Get events from the database
+        events = app_tables.marketcalendar.search(
+            q.between(app_tables.marketcalendar.date, start_date, end_date)
+        )
+        
+        # Convert to list of dictionaries with timezone conversion
+        event_list = []
+        for event_row in events:
+            # First create the base event dictionary with data from database
+            event = {
+                'date': event_row['date'].strftime('%Y-%m-%d'),
+                'time': event_row['time'],
+                'event': event_row['event'],
+                'currency': event_row['currency'],
+                'impact': event_row['impact'],
+                'forecast': event_row['forecast'],
+                'previous': event_row['previous']
+            }
+            
+            # Convert time if target timezone is not UTC
+            if target_timezone != "UTC" and event['time'] and event['date']:
+                try:
+                    # Parse the date
+                    event_date = datetime.datetime.strptime(event['date'], '%Y-%m-%d').date()
+                    
+                    # Handle various time formats
+                    time_str = event['time'].lower().replace('am', ' am').replace('pm', ' pm')
+                    
+                    # Try to parse the time string
+                    try:
+                        event_time = datetime.datetime.strptime(time_str, '%I:%M %p').time()
+                    except ValueError:
+                        try:
+                            event_time = datetime.datetime.strptime(time_str, '%H:%M').time()
+                        except ValueError:
+                            # If we can't parse the time, skip conversion
+                            event_list.append(event)
+                            continue
+                    
+                    # Create a datetime object in UTC
+                    utc_dt = datetime.datetime.combine(event_date, event_time, tzinfo=pytz.UTC)
+                    
+                    # Convert to target timezone
+                    local_dt = utc_dt.astimezone(tz)
+                    
+                    # Format the time for display
+                    event['time'] = local_dt.strftime('%I:%M %p')
+                    
+                except Exception as e:
+                    print(f"Error converting time: {e}")
+            
+            event_list.append(event)
+            
+        return event_list
+        
+    except Exception as e:
+        print(f"Error retrieving market calendar events with timezone conversion: {e}")
+        return []

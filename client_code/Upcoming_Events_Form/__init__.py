@@ -7,7 +7,6 @@ import anvil.google.auth, anvil.google.drive
 from anvil.google.drive import app_files
 import anvil.server
 import datetime
-import pytz
 
 
 class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
@@ -35,13 +34,12 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     # Get the date range based on selection
     start_date, end_date = self.get_date_range()
     
-    # Get events from server for the specified date range
-    events = anvil.server.call('get_market_calendar_events_for_date_range', start_date, end_date)
-    
-    # Convert time zones if needed
+    # Get events from server with timezone conversion
     selected_timezone = self.drop_down_time_zone.selected_value
-    if selected_timezone != "UTC":
-      events = self.convert_event_times(events, selected_timezone)
+    events = anvil.server.call('get_market_calendar_events_with_timezone', 
+                               start_date, 
+                               end_date, 
+                               selected_timezone)
     
     # Set the data source for the grid
     self.data_grid_market_events.items = events
@@ -104,62 +102,3 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     
     # Default to today if something goes wrong
     return today, today
-  
-  def convert_event_times(self, events, target_timezone):
-    """Convert event times from UTC to the selected timezone"""
-    # Define timezone mappings
-    timezone_map = {
-      "Eastern": "US/Eastern",
-      "Central": "US/Central",
-      "Mountain": "US/Mountain",
-      "Pacific": "US/Pacific",
-      "UTC": "UTC"
-    }
-    
-    # Get the pytz timezone object
-    tz = pytz.timezone(timezone_map[target_timezone])
-    
-    # Create a new list for converted events
-    converted_events = []
-    
-    for event in events:
-      # Create a copy of the event
-      converted_event = event.copy()
-      
-      # Only convert if we have both date and time
-      if event['time'] and event['date']:
-        try:
-          # Parse the date and time
-          event_date = datetime.datetime.strptime(event['date'], '%Y-%m-%d').date()
-          
-          # Handle various time formats
-          time_str = event['time'].lower().replace('am', ' am').replace('pm', ' pm')
-          
-          # Try to parse the time string
-          try:
-            event_time = datetime.datetime.strptime(time_str, '%I:%M %p').time()
-          except ValueError:
-            try:
-              event_time = datetime.datetime.strptime(time_str, '%H:%M').time()
-            except ValueError:
-              # If we can't parse the time, skip conversion
-              converted_events.append(converted_event)
-              continue
-          
-          # Create a datetime object in UTC
-          utc_dt = datetime.datetime.combine(event_date, event_time, tzinfo=pytz.UTC)
-          
-          # Convert to target timezone
-          local_dt = utc_dt.astimezone(tz)
-          
-          # Format the time for display
-          converted_event['time'] = local_dt.strftime('%I:%M %p')
-          
-        except Exception as e:
-          # If any conversion error, keep the original time
-          print(f"Error converting time: {e}")
-      
-      # Add the event to our list
-      converted_events.append(converted_event)
-    
-    return converted_events
