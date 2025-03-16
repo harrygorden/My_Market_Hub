@@ -382,9 +382,17 @@ def get_market_calendar_events_with_timezone(start_date, end_date, target_timezo
             q.between(app_tables.marketcalendar.date, start_date, end_date)
         )
         
+        # Debug output - how many events were found?
+        events_list = list(events)  # Convert to list to force evaluation
+        print(f"Found {len(events_list)} events between {start_date} and {end_date}")
+        
+        # Also print the first few events for debugging
+        for i, event_row in enumerate(events_list[:3]):  # Print first 3 events
+            print(f"Event {i+1}: {event_row['date']} - {event_row['time']} - {event_row['event']}")
+        
         # Convert to list of dictionaries with timezone conversion
         event_list = []
-        for event_row in events:
+        for event_row in events_list:
             # First create the base event dictionary with data from database
             event = {
                 'date': event_row['date'].strftime('%Y-%m-%d'),
@@ -429,7 +437,9 @@ def get_market_calendar_events_with_timezone(start_date, end_date, target_timezo
                     print(f"Error converting specific time: {e}")
             
             event_list.append(event)
-            
+        
+        # Debug the final output list
+        print(f"Returning {len(event_list)} events")
         return event_list
         
     except Exception as e:

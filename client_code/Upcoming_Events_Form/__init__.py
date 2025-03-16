@@ -45,8 +45,11 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
                               end_date_str, 
                               selected_timezone)
     
-    # Set the data source for the grid
-    self.data_grid_market_events.items = events
+    # Debug client-side: show how many events we received
+    print(f"Client received {len(events)} events")
+    
+    # Set the data source for the data grid's repeating panel
+    self.data_grid_market_events.repeating_panel_1.items = events
   
   def get_date_range(self):
     """Calculate start and end dates based on the selected range"""
