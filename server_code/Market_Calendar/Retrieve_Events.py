@@ -583,7 +583,23 @@ def fetch_next_month_events(verbose=VERBOSE_LOGGING):
     
     return _fetch_and_save_events(url, verbose)
 
-# Background task wrappers for scheduled execution
+@anvil.server.callable
+def fetch_today_events(verbose=VERBOSE_LOGGING):
+    """
+    Fetch and save market calendar events for today from ForexFactory
+    
+    Args:
+        verbose: Whether to print detailed logs
+    
+    Returns:
+        dict: Statistics about processed events
+    """
+    url = f"{FOREXFACTORY_BASE_URL}?day=today"
+    if verbose:
+        print(f"Fetching today's events from: {url}")
+    
+    return _fetch_and_save_events(url, verbose)
+
 @anvil.server.callable
 @anvil.server.background_task
 def bg_fetch_tomorrow_events(verbose=False):
@@ -681,9 +697,28 @@ def bg_fetch_next_month_events(verbose=False):
 
 @anvil.server.callable
 @anvil.server.background_task
+def bg_fetch_today_events(verbose=False):
+    """
+    Background task wrapper for fetch_today_events.
+    Allows scheduling the task to run at specified times.
+    
+    Args:
+        verbose: Whether to print detailed logs (defaults to False for background tasks)
+    
+    Returns:
+        dict: Statistics about processed events
+    """
+    print("Starting background task: fetch_today_events")
+    # Always use verbose=False to avoid excessive logging
+    result = fetch_today_events(verbose=False)
+    print(f"Completed fetch_today_events: Processed {result['total']} events ({result['new']} new, {result['existing']} existing)")
+    return result
+
+@anvil.server.callable
+@anvil.server.background_task
 def refresh_all_calendars(verbose=False):
     """
-    Refresh all calendar periods (tomorrow, this week, next week, this month, next month)
+    Refresh all calendar periods (today, tomorrow, this week, next week, this month, next month)
     with condensed logging output that only shows the final statistics.
     
     Args:
@@ -704,6 +739,7 @@ def refresh_all_calendars(verbose=False):
     
     # Fetch and process events for each time period
     time_ranges = {
+        "today": fetch_today_events,
         "tomorrow": fetch_tomorrow_events,
         "this_week": fetch_this_week_events,
         "next_week": fetch_next_week_events,
