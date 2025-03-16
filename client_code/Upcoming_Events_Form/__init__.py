@@ -107,23 +107,15 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     # Update the UI to show what we're doing
     print(f"Setting {len(processed_events)} events on the grid")
     
-    # IMPORTANT: In Anvil, DataGrids work by setting the items on their internal RepeatingPanel, not on the DataGrid itself!
     # Set the items directly on the repeating panel inside the DataGrid
-    # In the form designer, we can see this is named 'repeating_panel_1'
-    self.repeating_panel_1.items = processed_events
-    print(f"Set {len(processed_events)} items directly on the repeating panel")
+    # This is the correct way to populate a DataGrid in Anvil
+    self.data_grid_repeating_panel.items = processed_events
+    print(f"Set {len(processed_events)} items on the data grid repeating panel")
     
-    # Also set items on our fallback repeating panel (which was displaying correctly)
-    try:
-      self.events_table_fallback.items = processed_events
-      print(f"Set {len(processed_events)} items on fallback display")
-    except Exception as e:
-      print(f"Error setting fallback items: {e}")
-    
-    # Force UI refresh - sometimes necessary in Anvil for proper rendering
+    # Force UI refresh
     self.refresh_data_bindings()
     
-    # Ensure the grid is visible
+    # Ensure the DataGrid is visible
     self.data_grid_market_events.visible = True
     
     # Update UI to show status

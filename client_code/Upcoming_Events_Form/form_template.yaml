@@ -22,8 +22,10 @@ components:
     - components:
       - data_bindings: []
         layout_properties: {}
-        name: repeating_panel_1
-        properties: {item_template: Upcoming_Events_Form.RowTemplate1, role: null, visible: true}
+        name: data_grid_repeating_panel
+        properties: 
+          item_template: Upcoming_Events_Form.RowTemplate1
+          visible: true
         type: RepeatingPanel
       layout_properties: {grid_position: 'LRYAAB,RJJLUA'}
       name: data_grid_market_events
@@ -54,28 +56,6 @@ components:
         show_page_controls: true
         rows_per_page: 10
       type: DataGrid
-    - name: events_fallback_panel
-      type: ColumnPanel
-      layout_properties: {grid_position: 'KWDEJF,RJJLUA'}
-      properties:
-        role: card
-        visible: true
-        background: theme:Surface
-        foreground: theme:On Surface
-      components:
-        - name: events_title
-          type: Label
-          properties:
-            text: Events Display (Fallback)
-            font_size: 18
-            bold: true
-            foreground: theme:On Surface
-            visible: true
-        - name: events_table_fallback
-          type: RepeatingPanel
-          properties:
-            item_template: Upcoming_Events_Form.RowTemplate1
-            visible: true
     layout_properties: {full_width_row: false, grid_position: 'FBNCGY,NSPYHY'}
     name: outlined_card_2
     properties: {background: 'theme:Primary', role: outlined-card}
