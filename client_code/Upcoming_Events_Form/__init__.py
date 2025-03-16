@@ -88,7 +88,7 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     # For countdown calculation, always use UTC
     timezone_for_event = "UTC"
     
-    # For display, always use Eastern
+    # For display, we'll convert to Eastern later
     self.display_timezone = "Eastern"
     
     # Call server to get the next high impact event
@@ -160,6 +160,25 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
           )
           return
     
+      # Convert the event_time_str to Eastern Time for display
+      try:
+        # Import pytz for timezone conversion
+        import pytz
+        
+        # Parse the event time (in UTC)
+        event_datetime_utc = event_datetime.replace(tzinfo=pytz.UTC)
+        
+        # Convert to Eastern Time
+        eastern_tz = pytz.timezone("America/New_York")
+        event_datetime_eastern = event_datetime_utc.astimezone(eastern_tz)
+        
+        # Format the time for display
+        eastern_time_str = event_datetime_eastern.strftime("%I:%M %p")
+      except Exception as e:
+        print(f"Error converting time to Eastern: {str(e)}")
+        # Fallback to original time string if conversion fails
+        eastern_time_str = event_time_str
+    
       # Calculate time difference
       time_diff = event_datetime - now
       
@@ -167,7 +186,7 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
       if time_diff.total_seconds() <= 0:
         self.rich_text_high_impact_event_countdown.content = (
           f"Next High Impact Event\n\n"
-          f"{event_name} at {event_time_str} has already occurred.\n"
+          f"{event_name} at {eastern_time_str} has already occurred.\n"
           f"Please refresh to see the next upcoming high impact event."
         )
         # Update the next event (this will refresh at most once a minute to avoid server spam)
@@ -220,7 +239,7 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
       self.rich_text_high_impact_event_countdown.content = (
         f"Next High Impact Event\n\n"
         f"{countdown_text}\n\n"
-        f"{event_name}\n{friendly_day} at {event_time_str} (Eastern)"
+        f"{event_name}\n{friendly_day} at {eastern_time_str} (Eastern)"
       )
     except Exception as e:
       print(f"Error updating countdown: {type(e).__name__} - {str(e)}")
