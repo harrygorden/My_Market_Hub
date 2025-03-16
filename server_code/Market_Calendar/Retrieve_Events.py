@@ -148,6 +148,7 @@ def _extract_calendar_events(response_text):
     # Extract events from the table
     events = []
     current_date = None
+    current_time = ""  # Track the current time for grouped events
     
     # Find all table rows
     rows = calendar_table.find_all('tr')
@@ -175,12 +176,17 @@ def _extract_calendar_events(response_text):
                 if currency != USD_CURRENCY:
                     continue
                 
-                # Get the event time - KEEP THE ORIGINAL TIME WITHOUT CONVERSION
+                # Get the event time from this row
                 time_cell = row.find('td', class_='calendar__cell calendar__time')
-                event_time = time_cell.text.strip() if time_cell else ''
+                row_time = time_cell.text.strip() if time_cell else ''
                 
-                # Log the original time from ForexFactory
-                print(f"Original event time from ForexFactory: '{event_time}'")
+                # If this row has a time, update our current_time tracker
+                if row_time:
+                    current_time = row_time
+                    print(f"Found new time marker: '{current_time}'")
+                
+                # Log the time we're using for this event (either from this row or carried forward)
+                print(f"Using time for this event: '{current_time}'")
                 
                 # Get the event name
                 event_cell = row.find('td', class_='calendar__cell calendar__event')
@@ -219,10 +225,10 @@ def _extract_calendar_events(response_text):
                 previous_cell = row.find('td', class_='calendar__cell calendar__previous')
                 previous = previous_cell.text.strip() if previous_cell else ''
                 
-                # Save the event in our list, using the original time and site's timezone
+                # Save the event in our list, using the current time (which may be from an earlier row)
                 event_data = {
                     'date': current_date,
-                    'time': event_time,  # Original time from ForexFactory
+                    'time': current_time,  # This may come from an earlier row
                     'currency': currency,
                     'event': event_name,
                     'impact': impact,
