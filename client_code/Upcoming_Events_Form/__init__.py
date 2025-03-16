@@ -52,6 +52,7 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     
     # Initialize the countdown timer for high impact events
     self.next_high_impact_event = None
+    self.eastern_time_str = None
     self.update_high_impact_countdown()
     
     # Set up the existing timer component
@@ -99,6 +100,27 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
       # If we have an event, update the countdown display immediately
       if self.next_high_impact_event:
         print(f"Successfully fetched event: {self.next_high_impact_event}")
+        
+        # Convert UTC to Eastern Time once when we get the event
+        try:
+          event_date_str = self.next_high_impact_event.get('date', '')
+          event_time_str = self.next_high_impact_event.get('time', '')
+          utc_dt_str = f"{event_date_str} {event_time_str}"
+          
+          # Call server to convert time - only do this once when we get the event
+          eastern_time_info = anvil.server.call('convert_utc_to_eastern', utc_dt_str)
+          
+          # Store the Eastern time string for use in the countdown timer
+          if eastern_time_info and 'eastern_time' in eastern_time_info and eastern_time_info['eastern_time']:
+            self.eastern_time_str = eastern_time_info['eastern_time']
+          else:
+            # Fallback to original time if conversion fails
+            self.eastern_time_str = event_time_str
+            print(f"Eastern time conversion failed: {eastern_time_info.get('error', 'Unknown error')}")
+        except Exception as e:
+          self.eastern_time_str = event_time_str
+          print(f"Error converting to Eastern time: {str(e)}")
+        
         # Ensure the rich text box exists before attempting to update it
         if hasattr(self, 'rich_text_high_impact_event_countdown') and self.rich_text_high_impact_event_countdown:
           self.update_countdown_display()
@@ -135,6 +157,9 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
       event_time_str = self.next_high_impact_event.get('time', '')
       event_name = self.next_high_impact_event.get('event', 'Unknown event')
       
+      # Use the pre-converted Eastern time string that we stored earlier
+      eastern_time_str = getattr(self, 'eastern_time_str', event_time_str)
+      
       if not event_date_str or not event_time_str:
         self.rich_text_high_impact_event_countdown.content = (
           f"Next High Impact Event\n\n"
@@ -159,26 +184,7 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
             f"(Unable to calculate countdown)"
           )
           return
-    
-      # Convert UTC to Eastern Time using server-side function
-      try:
-        # Format the UTC datetime for the server call
-        utc_dt_str = f"{event_date_str} {event_time_str}"
-        
-        # Call server to convert time
-        eastern_time_info = anvil.server.call('convert_utc_to_eastern', utc_dt_str)
-        
-        # Extract Eastern time
-        if eastern_time_info and 'eastern_time' in eastern_time_info and eastern_time_info['eastern_time']:
-          eastern_time_str = eastern_time_info['eastern_time']
-        else:
-          # Fallback to original time if conversion fails
-          eastern_time_str = event_time_str
-          print(f"Eastern time conversion failed: {eastern_time_info.get('error', 'Unknown error')}")
-      except Exception as e:
-        eastern_time_str = event_time_str
-        print(f"Error converting to Eastern time: {str(e)}")
-    
+      
       # Calculate time difference
       time_diff = event_datetime - now
       
@@ -221,16 +227,11 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
       elif event_date == tomorrow:
         friendly_day = "Tomorrow"
       else:
-        # Get the day of week
-        day_of_week = event_date.strftime("%A")
-        
-        # Calculate days difference
-        days_diff = (event_date - today).days
-        
-        if days_diff < 7:
-          friendly_day = f"This {day_of_week}"
-        elif days_diff < 14:
-          friendly_day = f"Next {day_of_week}"
+        # For dates within the next 7 days, use day name
+        day_diff = (event_date - today).days
+        if day_diff <= 6:
+          # Get the day name (Monday, Tuesday, etc.)
+          friendly_day = f"This {event_date.strftime('%A')}"
         else:
           # For dates further away, use the month and day
           friendly_day = event_date.strftime("%B %d")
