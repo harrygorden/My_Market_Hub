@@ -110,19 +110,18 @@ def _parse_event_time(event_time, current_date, site_timezone):
     # Return original if parsing fails
     return event_time
 
-def _extract_calendar_events(response_text, filter_date_range=None):
+def _extract_calendar_events(response_text):
     """
     Extract calendar events from HTML response
     
     Args:
         response_text: HTML content from ForexFactory
-        filter_date_range: Optional tuple of (start_date, end_date) to filter events
     
     Returns:
         List of event dictionaries
     """
     if not response_text:
-        return False
+        return []
     
     # Get current time in Chicago timezone for date parsing
     now = datetime.datetime.now(CHICAGO_TZ)
@@ -139,7 +138,7 @@ def _extract_calendar_events(response_text, filter_date_range=None):
     if not calendar_table:
         print("Calendar table not found in the page")
         print(f"First 500 chars of response: {response_text[:500]}")
-        return False
+        return []
     
     print("Found calendar table in the HTML")
     
@@ -204,14 +203,7 @@ def _extract_calendar_events(response_text, filter_date_range=None):
                 previous_cell = row.find('td', class_='calendar__cell calendar__previous')
                 previous = previous_cell.text.strip() if previous_cell else ''
                 
-                # Filter by date range if provided
-                if filter_date_range:
-                    start_date, end_date = filter_date_range
-                    event_date = datetime.datetime.strptime(current_date, "%Y-%m-%d").date()
-                    if event_date < start_date or event_date > end_date:
-                        continue
-                
-                # Construct event data
+                # Save the event in our list
                 event_data = {
                     'date': current_date,
                     'time': chicago_event_time,
@@ -226,147 +218,149 @@ def _extract_calendar_events(response_text, filter_date_range=None):
                 events.append(event_data)
                 
             except Exception as e:
-                print(f"Error processing event row: {e}")
-                continue
+                print(f"Error extracting event data from row: {e}")
     
-    print(f"Extracted {len(events)} USD events (all times in Chicago timezone)")
+    print(f"Extracted {len(events)} USD events from the calendar")
     return events
 
-# Server callable functions
-@anvil.server.callable
-@anvil.server.background_task
-def retrieve_market_calendar_events():
+def _fetch_and_save_events(url):
     """
-    Retrieves market calendar events from ForexFactory.com
-    Filters for USD currency events for the next 10 days
-    Prints results to the console
-    Ensures all dates/times are converted to America/Chicago timezone
-    Saves events to the marketcalendar Anvil table
+    Fetch events from a given ForexFactory URL and save them to the database
     
-    This function can be called via uplink for testing
+    Args:
+        url: Complete ForexFactory URL to fetch events from
+        
+    Returns:
+        int: Number of events processed
     """
-    print("Starting ForexFactory calendar scraping for USD events")
+    # Get the HTML response
+    response_text = _get_response_text(url)
+    if not response_text:
+        print(f"Failed to get response from {url}")
+        return 0
     
-    try:
-        # Get the current date and time in Chicago Time
-        now = datetime.datetime.now(CHICAGO_TZ)
-        
-        # Calculate end date (10 days from now)
-        end_date = now + datetime.timedelta(days=10)
-        
-        print(f"Retrieving USD events from {now.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
-        
-        # Fetch and parse the calendar page
-        response_text = _get_response_text(FOREXFACTORY_BASE_URL)
-        if not response_text:
-            return False
-            
-        # Extract events with date range filter
-        events = _extract_calendar_events(
-            response_text, 
-            filter_date_range=(now.date(), end_date.date())
-        )
-        
-        # Save events to the marketcalendar table
-        if events:
-            # Clear existing events for the date range to avoid duplicates
-            start_date = datetime.datetime.strptime(events[0]['date'], '%Y-%m-%d').date()
-            end_date_obj = datetime.datetime.strptime(events[-1]['date'], '%Y-%m-%d').date()
-            DB_Utils.clear_market_calendar_events_for_date_range(start_date, end_date_obj)
-            
-            # Save the new events
-            saved_count = DB_Utils.save_multiple_market_calendar_events(events)
-            print(f"Saved {saved_count} events to marketcalendar table")
-        else:
-            print("No events to save to the database")
-        
-        return events
-        
-    except Exception as e:
-        print(f"Error in retrieve_market_calendar_events: {e}")
-        return False
+    # Extract events from the HTML
+    events = _extract_calendar_events(response_text)
+    if not events:
+        print("No events extracted from the page")
+        return 0
+    
+    # Save events to the database
+    saved_count = DB_Utils.save_multiple_market_calendar_events(events)
+    
+    return saved_count
 
+# Server callable functions for different time ranges
 
 @anvil.server.callable
-@anvil.server.background_task
-def retrieve_market_calendar_events_this_month():
+def fetch_tomorrow_events():
     """
-    Retrieves market calendar events from ForexFactory.com for the current month
-    Filters for USD currency events only
-    Prints results to the console
-    Saves events to the marketcalendar Anvil table
+    Fetch and save market calendar events for tomorrow from ForexFactory
     
-    This function can be scheduled to run monthly
+    Returns:
+        int: Number of events saved
     """
-    print("Starting ForexFactory calendar scraping for this month (USD events only)")
+    url = f"{FOREXFACTORY_BASE_URL}?day=tomorrow"
+    print(f"Fetching tomorrow's events from: {url}")
     
-    # Get the current month and year
-    now = datetime.datetime.now(CHICAGO_TZ)
-    current_year = now.year
-    current_month = now.month
+    return _fetch_and_save_events(url)
+
+@anvil.server.callable
+def fetch_this_week_events():
+    """
+    Fetch and save market calendar events for the current week from ForexFactory
     
-    # Clear existing events for this month to avoid duplicates
-    DB_Utils.clear_market_calendar_events_for_month(current_year, current_month)
+    Returns:
+        int: Number of events saved
+    """
+    url = f"{FOREXFACTORY_BASE_URL}?week=this"
+    print(f"Fetching this week's events from: {url}")
     
-    # Get events for the current month
+    return _fetch_and_save_events(url)
+
+@anvil.server.callable
+def fetch_next_week_events():
+    """
+    Fetch and save market calendar events for next week from ForexFactory
+    
+    Returns:
+        int: Number of events saved
+    """
+    url = f"{FOREXFACTORY_BASE_URL}?week=next"
+    print(f"Fetching next week's events from: {url}")
+    
+    return _fetch_and_save_events(url)
+
+@anvil.server.callable
+def fetch_this_month_events():
+    """
+    Fetch and save market calendar events for the current month from ForexFactory
+    
+    Returns:
+        int: Number of events saved
+    """
     url = f"{FOREXFACTORY_BASE_URL}?month=this"
-    response_text = _get_response_text(url)
-    events = _extract_calendar_events(response_text)
+    print(f"Fetching this month's events from: {url}")
     
-    # Save events to the marketcalendar table
-    if events:
-        saved_count = DB_Utils.save_multiple_market_calendar_events(events)
-        print(f"Saved {saved_count} events to marketcalendar table for {now.strftime('%B %Y')}")
-    else:
-        print(f"No events to save for {now.strftime('%B %Y')}")
-    
-    return events
-
+    return _fetch_and_save_events(url)
 
 @anvil.server.callable
-@anvil.server.background_task
-def retrieve_market_calendar_events_next_month():
+def fetch_next_month_events():
     """
-    Retrieves market calendar events from ForexFactory.com for the next month
-    Filters for USD currency events only
-    Prints results to the console
-    Saves events to the marketcalendar Anvil table
+    Fetch and save market calendar events for next month from ForexFactory
     
-    This function can be scheduled to run on the first of each month
+    Returns:
+        int: Number of events saved
     """
-    print("Starting ForexFactory calendar scraping for next month (USD events only)")
-    
-    # Calculate next month and year
-    now = datetime.datetime.now(CHICAGO_TZ)
-    
-    # Get next month and year
-    if now.month == 12:
-        next_month = 1
-        next_year = now.year + 1
-    else:
-        next_month = now.month + 1
-        next_year = now.year
-    
-    # Clear existing events for next month to avoid duplicates
-    DB_Utils.clear_market_calendar_events_for_month(next_year, next_month)
-    
-    # Get events for the next month
     url = f"{FOREXFACTORY_BASE_URL}?month=next"
-    response_text = _get_response_text(url)
-    events = _extract_calendar_events(response_text)
+    print(f"Fetching next month's events from: {url}")
     
-    # Save events to the marketcalendar table
-    if events:
-        saved_count = DB_Utils.save_multiple_market_calendar_events(events)
-        next_month_name = datetime.date(next_year, next_month, 1).strftime('%B %Y')
-        print(f"Saved {saved_count} events to marketcalendar table for {next_month_name}")
-    else:
-        next_month_name = datetime.date(next_year, next_month, 1).strftime('%B %Y')
-        print(f"No events to save for {next_month_name}")
-    
-    return events
+    return _fetch_and_save_events(url)
 
+@anvil.server.callable
+def refresh_all_calendars():
+    """
+    Refresh all calendar periods (tomorrow, this week, next week, this month, next month)
+    
+    Returns:
+        dict: Count of events saved for each time range
+    """
+    results = {
+        "tomorrow": fetch_tomorrow_events(),
+        "this_week": fetch_this_week_events(),
+        "next_week": fetch_next_week_events(),
+        "this_month": fetch_this_month_events(),
+        "next_month": fetch_next_month_events()
+    }
+    
+    total_events = sum(results.values())
+    print(f"Total events saved across all calendars: {total_events}")
+    
+    return results
+
+# Legacy functions for backward compatibility
+@anvil.server.callable
+def retrieve_market_calendar_events():
+    """Legacy function - redirects to refresh_all_calendars"""
+    print("Legacy function retrieve_market_calendar_events called - using refresh_all_calendars instead")
+    return refresh_all_calendars()
+
+@anvil.server.callable
+def retrieve_market_calendar_events_this_month():
+    """Legacy function - redirects to fetch_this_month_events"""
+    print("Legacy function retrieve_market_calendar_events_this_month called - using fetch_this_month_events instead")
+    return fetch_this_month_events()
+
+@anvil.server.callable
+def retrieve_market_calendar_events_next_month():
+    """Legacy function - redirects to fetch_next_month_events"""
+    print("Legacy function retrieve_market_calendar_events_next_month called - using fetch_next_month_events instead")
+    return fetch_next_month_events()
 
 # You can test these functions using the uplink with:
-# anvil.server.call('retrieve_market_calendar_events_this_month')
-# anvil.server.call('retrieve_market_calendar_events_next_month')
+# anvil.server.call('fetch_tomorrow_events')
+# anvil.server.call('fetch_this_week_events')
+# anvil.server.call('fetch_next_week_events')
+# anvil.server.call('fetch_this_month_events')
+# anvil.server.call('fetch_next_month_events')
+# anvil.server.call('refresh_all_calendars')

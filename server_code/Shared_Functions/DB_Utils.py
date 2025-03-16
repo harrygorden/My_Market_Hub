@@ -40,29 +40,58 @@ def save_market_calendar_event(event_data):
         row: The newly created or updated table row
     """
     try:
-        # Reduce log verbosity - comment out individual event logging
-        # print(f"Saving market calendar event: {event_data['date']} {event_data['time']} - {event_data['event']}")
-        
         # Convert date string to datetime.date object
         event_date = datetime.datetime.strptime(event_data['date'], '%Y-%m-%d').date()
         
-        # Check if this event already exists in the table
-        existing_event = app_tables.marketcalendar.get(
+        # Create a unique event identifier based on date, time, and event name
+        # This should prevent duplicate events even from different sources
+        existing_events = app_tables.marketcalendar.search(
             date=event_date,
-            time=event_data['time'],
-            event=event_data['event'],
-            currency=event_data['currency']
+            event=event_data['event']
         )
         
+        # Convert to list for checking if there are any matching events
+        existing_events_list = list(existing_events)
+        
+        # Additional check for time to handle potential time format differences
+        existing_event = None
+        for event in existing_events_list:
+            # Direct match
+            if event['time'] == event_data['time']:
+                existing_event = event
+                break
+                
+            # Handle case where one might be "10:00am" and the other "10:00 am" or similar variants
+            if event['time'] and event_data['time']:
+                # Normalize times by removing spaces and converting to lowercase
+                normalized_db_time = event['time'].lower().replace(' ', '')
+                normalized_new_time = event_data['time'].lower().replace(' ', '')
+                
+                if normalized_db_time == normalized_new_time:
+                    existing_event = event
+                    break
+        
         if existing_event:
-            # Update existing event
-            existing_event.update(
-                impact=event_data['impact'],
-                forecast=event_data['forecast'],
-                previous=event_data['previous']
-            )
-            # Reduce log verbosity - comment out individual event logging
-            # print(f"Updated existing event: {event_data['event']}")
+            # Update existing event with new data, preserving the original if new data is empty
+            updates = {}
+            
+            # Only update fields if the new data has a non-empty value
+            if event_data.get('impact') and event_data['impact'] != existing_event['impact']:
+                updates['impact'] = event_data['impact']
+                
+            if event_data.get('forecast') and event_data['forecast'] != existing_event['forecast']:
+                updates['forecast'] = event_data['forecast']
+                
+            if event_data.get('previous') and event_data['previous'] != existing_event['previous']:
+                updates['previous'] = event_data['previous']
+                
+            # Only update if we have changes
+            if updates:
+                existing_event.update(**updates)
+                print(f"Updated existing event: {event_data['event']} on {event_data['date']} at {event_data['time']}")
+            else:
+                print(f"No changes needed for: {event_data['event']} on {event_data['date']} at {event_data['time']}")
+                
             return existing_event
         else:
             # Create new event
@@ -71,12 +100,11 @@ def save_market_calendar_event(event_data):
                 time=event_data['time'],
                 event=event_data['event'],
                 currency=event_data['currency'],
-                impact=event_data['impact'],
-                forecast=event_data['forecast'],
-                previous=event_data['previous']
+                impact=event_data.get('impact', ''),
+                forecast=event_data.get('forecast', ''),
+                previous=event_data.get('previous', '')
             )
-            # Reduce log verbosity - comment out individual event logging
-            # print(f"Added new event: {event_data['event']}")
+            print(f"Added new event: {event_data['event']} on {event_data['date']} at {event_data['time']}")
             return new_event
     
     except Exception as e:
@@ -98,6 +126,7 @@ def save_multiple_market_calendar_events(events_list):
         print("No events to save")
         return 0
     
+    print(f"Processing {len(events_list)} events for saving to database")
     success_count = 0
     
     for event in events_list:
@@ -105,7 +134,7 @@ def save_multiple_market_calendar_events(events_list):
         if result:
             success_count += 1
     
-    print(f"Successfully saved {success_count} out of {len(events_list)} events")
+    print(f"Successfully processed {success_count} out of {len(events_list)} events")
     return success_count
 
 @anvil.server.callable
@@ -201,7 +230,55 @@ def get_market_calendar_events_for_date_range(start_date, end_date):
             event_list.append(event_dict)
         
         return event_list
-    
+        
     except Exception as e:
         print(f"Error retrieving market calendar events: {e}")
+        return []
+
+@anvil.server.callable
+def get_market_calendar_events_by_impact(impact_level, start_date=None, end_date=None):
+    """
+    Retrieve market calendar events filtered by impact level and optional date range
+    
+    Args:
+        impact_level (str): Impact level to filter by (high, medium, low)
+        start_date (datetime.date, optional): Start date (inclusive)
+        end_date (datetime.date, optional): End date (inclusive)
+        
+    Returns:
+        list: List of event dictionaries
+    """
+    try:
+        # Create query filters
+        filters = [q.equal(app_tables.marketcalendar.impact, impact_level)]
+        
+        # Add date filters if provided
+        if start_date and end_date:
+            filters.append(q.between(app_tables.marketcalendar.date, start_date, end_date))
+        elif start_date:
+            filters.append(q.greater_than_or_equal_to(app_tables.marketcalendar.date, start_date))
+        elif end_date:
+            filters.append(q.less_than_or_equal_to(app_tables.marketcalendar.date, end_date))
+        
+        # Execute the search with filters
+        events = app_tables.marketcalendar.search(*filters)
+        
+        # Convert to list of dictionaries
+        event_list = []
+        for event in events:
+            event_dict = {
+                'date': event['date'].strftime('%Y-%m-%d'),
+                'time': event['time'],
+                'event': event['event'],
+                'currency': event['currency'],
+                'impact': event['impact'],
+                'forecast': event['forecast'],
+                'previous': event['previous']
+            }
+            event_list.append(event_dict)
+            
+        return event_list
+        
+    except Exception as e:
+        print(f"Error retrieving market calendar events by impact: {e}")
         return []
