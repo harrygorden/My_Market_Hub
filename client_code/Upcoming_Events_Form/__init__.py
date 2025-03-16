@@ -89,10 +89,16 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     # Get the selected timezone
     selected_timezone = self.drop_down_time_zone.selected_value
     
+    # Store the timezone for display purposes only
+    self.display_timezone = selected_timezone
+    
+    # For countdown calculation, always use UTC to ensure consistency
+    timezone_for_event = "UTC"
+    
     # Call server to get the next high impact event
     try:
-      print(f"Fetching next high impact event, timezone: {selected_timezone}")
-      self.next_high_impact_event = anvil.server.call('get_next_high_impact_event', selected_timezone)
+      print(f"Fetching next high impact event, timezone: {timezone_for_event}")
+      self.next_high_impact_event = anvil.server.call('get_next_high_impact_event', timezone_for_event)
       
       # If we have an event, update the countdown display immediately
       if self.next_high_impact_event:
@@ -125,10 +131,10 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
       return
     
     try:
-      # Get current time
-      now = datetime.datetime.now()
+      # Get current time in UTC for consistent countdown calculation
+      now = datetime.datetime.utcnow()
       
-      # Parse event datetime
+      # Parse event datetime - these times are already in UTC from the server
       event_date_str = self.next_high_impact_event.get('date', '')
       event_time_str = self.next_high_impact_event.get('time', '')
       event_name = self.next_high_impact_event.get('event', 'Unknown event')
@@ -215,7 +221,7 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
           friendly_day = event_date.strftime("%B %d")
       
       # Get timezone display name
-      timezone_name = self.drop_down_time_zone.selected_value if hasattr(self, 'drop_down_time_zone') and self.drop_down_time_zone.selected_value else "UTC"
+      timezone_name = self.display_timezone if hasattr(self, 'display_timezone') and self.display_timezone else "UTC"
       
       # Update the rich text content with the new format
       self.rich_text_high_impact_event_countdown.content = (
