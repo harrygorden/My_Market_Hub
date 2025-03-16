@@ -72,9 +72,6 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     # Show loading in the UI
     print(f"Fetching events from {start_date_str} to {end_date_str} in {self.drop_down_time_zone.selected_value} timezone...")
     
-    # Clear existing items first
-    self.data_grid_market_events.items = []
-    
     # Get events from server with timezone conversion
     selected_timezone = self.drop_down_time_zone.selected_value
     events = anvil.server.call('get_market_calendar_events_with_timezone', 
@@ -110,31 +107,20 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     # Update the UI to show what we're doing
     print(f"Setting {len(processed_events)} events on the grid")
     
-    # First, try to directly access the repeating panel within the DataGrid
-    # In Anvil, the first component of a DataGrid is usually its RepeatingPanel
-    try:
-      # Get the components inside the DataGrid
-      grid_components = self.data_grid_market_events.get_components()
-      
-      # If we found components, try to set items on the first one (the repeating panel)
-      if grid_components and len(grid_components) > 0:
-        repeating_panel = grid_components[0]
-        repeating_panel.items = processed_events
-        print(f"Directly set {len(processed_events)} items on the repeating panel")
-    except Exception as e:
-      print(f"Error accessing repeating panel: {e}")
+    # IMPORTANT: In Anvil, DataGrids work by setting the items on their internal RepeatingPanel, not on the DataGrid itself!
+    # Set the items directly on the repeating panel inside the DataGrid
+    # In the form designer, we can see this is named 'repeating_panel_1'
+    self.repeating_panel_1.items = processed_events
+    print(f"Set {len(processed_events)} items directly on the repeating panel")
     
-    # Always set items on the DataGrid itself as well - this is the standard approach
-    self.data_grid_market_events.items = processed_events
-    
-    # Also set items on our fallback repeating panel
+    # Also set items on our fallback repeating panel (which was displaying correctly)
     try:
       self.events_table_fallback.items = processed_events
       print(f"Set {len(processed_events)} items on fallback display")
     except Exception as e:
       print(f"Error setting fallback items: {e}")
     
-    # Force UI refresh - sometimes necessary in Anvil for DataGrids
+    # Force UI refresh - sometimes necessary in Anvil for proper rendering
     self.refresh_data_bindings()
     
     # Ensure the grid is visible
