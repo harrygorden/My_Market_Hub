@@ -72,6 +72,9 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     # Show loading in the UI
     print(f"Fetching events from {start_date_str} to {end_date_str} in {self.drop_down_time_zone.selected_value} timezone...")
     
+    # Clear existing items first
+    self.data_grid_market_events.items = []
+    
     # Get events from server with timezone conversion
     selected_timezone = self.drop_down_time_zone.selected_value
     events = anvil.server.call('get_market_calendar_events_with_timezone', 
@@ -84,67 +87,45 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     if len(events) > 0:
       print(f"First event: {events[0]}")
     
-    # Process events for display - ensure consistent data types
-    rows = []
-    if events:  # Only process if we have events
-      # Process the first event to check field structure
-      first_processed = {}
-      for event in events:
-        # Create a fresh dict with exactly the expected keys
-        row = {}
-        # Ensure we convert all values to strings to avoid type issues
-        row['date'] = str(event.get('date', ''))
-        row['time'] = str(event.get('time', ''))
-        row['event'] = str(event.get('event', ''))
-        row['impact'] = str(event.get('impact', ''))
-        row['forecast'] = str(event.get('forecast', ''))
-        row['previous'] = str(event.get('previous', ''))
-        rows.append(row)
-        
-        # Save first one for debugging
-        if not first_processed:
-          first_processed = row
-          print(f"First processed event: {first_processed}")
+    # Convert to proper format for data grid
+    # Each item must be a dictionary with keys matching column data_keys
+    processed_events = []
     
-    # Set items with visual refresh approach
-    print(f"Setting {len(rows)} items on the data grid")
+    # Process each event
+    for event in events:
+      # Create a new dictionary with the correct keys
+      processed_event = {}
+      
+      # Ensure all fields are strings to avoid type issues
+      processed_event['date'] = str(event.get('date', ''))
+      processed_event['time'] = str(event.get('time', ''))
+      processed_event['event'] = str(event.get('event', ''))
+      processed_event['impact'] = str(event.get('impact', ''))
+      processed_event['forecast'] = str(event.get('forecast', ''))
+      processed_event['previous'] = str(event.get('previous', ''))
+      
+      # Add to our list
+      processed_events.append(processed_event)
     
-    # Approach 1: Set to None first, then empty list, then actual data
-    # This technique helps clear any existing state in the grid
-    self.data_grid_market_events.items = None
+    # Update the UI to show what we're doing
+    print(f"Setting {len(processed_events)} events on the grid")
     
-    # Add a small delay for UI update
-    import time
-    time.sleep(0.1)
+    # Use native Anvil approach - set items directly on the data grid
+    self.data_grid_market_events.items = processed_events
     
-    # Now set to empty list
-    self.data_grid_market_events.items = []
-    
-    # Another small delay
-    time.sleep(0.1)
-    
-    # Finally set the actual data
-    self.data_grid_market_events.items = rows
-    
-    # Force visibility to ensure it's displayed
-    self.data_grid_market_events.visible = True
-    
-    # Try to force a visual refresh of the entire form
+    # Force UI refresh - sometimes necessary in Anvil for DataGrids
     self.refresh_data_bindings()
     
-    # Debug what's actually in the grid
-    try:
-      print(f"DataGrid now has {len(self.data_grid_market_events.items)} items")
-      if len(self.data_grid_market_events.items) > 0:
-        print(f"First event in grid: {self.data_grid_market_events.items[0]}")
-    except Exception as e:
-      print(f"Error checking items: {e}")
+    # Ensure the grid is visible
+    self.data_grid_market_events.visible = True
     
     # Update UI to show status
     if len(events) == 0:
       print("No events found for the selected date range")
     else:
-      print(f"Displaying {len(events)} events in the grid")
+      print(f"Displayed {len(events)} events in the grid")
+    
+    return
   
   def get_date_range(self):
     """Calculate start and end dates based on the selected range"""
