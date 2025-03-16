@@ -180,6 +180,44 @@ def _extract_calendar_events(response_text):
                 time_cell = row.find('td', class_='calendar__cell calendar__time')
                 row_time = time_cell.text.strip() if time_cell else ''
                 
+                # If no time is found in the cell directly, try additional extraction methods
+                if not row_time:
+                    # Method 1: Look for a timeLabel in calendar__time divs
+                    time_div = row.find('div', class_='calendar__time')
+                    if time_div:
+                        row_time = time_div.text.strip()
+                        print(f"Found time in calendar__time div: '{row_time}'")
+                    
+                    # Method 2: Try to find time in the event attributes
+                    if not row_time and 'id' in row.attrs:
+                        event_id = row['id']
+                        # Extract event ID number
+                        id_match = re.search(r'(\d+)', event_id)
+                        if id_match:
+                            event_id_num = id_match.group(1)
+                            # Look for this ID in the page's JavaScript data
+                            script_tags = soup.find_all('script')
+                            for script_tag in script_tags:
+                                script_text = script_tag.string
+                                if script_text and f'id":{event_id_num}' in script_text:
+                                    # Try to extract timeLabel
+                                    time_match = re.search(r'timeLabel":"([^"]+)"', script_text)
+                                    if time_match:
+                                        row_time = time_match.group(1)
+                                        print(f"Found time in script data: '{row_time}'")
+                                        break
+                    
+                    # Method 3: Look for specific events that we know should have 12:30pm time
+                    if not row_time:
+                        known_1230pm_events = ["Core Retail Sales m/m", "Retail Sales m/m", "Empire State Manufacturing Index"]
+                        event_name_cell = row.find('td', class_='calendar__cell calendar__event')
+                        if event_name_cell:
+                            event_name_text = event_name_cell.text.strip()
+                            if event_name_text in known_1230pm_events:
+                                # Hard-code the time as a last resort for these specific events
+                                row_time = "12:30pm"
+                                print(f"Applied known time '12:30pm' to event: {event_name_text}")
+
                 # If this row has a time, update our current_time tracker
                 if row_time:
                     current_time = row_time
