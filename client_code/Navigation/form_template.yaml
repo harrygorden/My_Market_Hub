@@ -36,7 +36,7 @@ components:
     type: Button
   - event_bindings: {click: button_5_click}
     layout_properties: {grid_position: 'NRGYVL,XJYVUQ'}
-    name: button_5
+    name: navigation_button_key_lines
     properties: {text: Key Lines}
     type: Button
   layout_properties: {slot: left-nav}
