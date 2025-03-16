@@ -5,7 +5,8 @@ components:
     properties: {align: center, content: Upcoming Events, font_size: 40}
     type: RichText
   - components:
-    - layout_properties: {grid_position: 'JJOBQI,JOJRQP'}
+    - event_bindings: {change: drop_down_time_range_change}
+      layout_properties: {grid_position: 'JJOBQI,JOJRQP'}
       name: drop_down_time_range
       properties:
         include_placeholder: false
