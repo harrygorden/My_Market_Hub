@@ -60,3 +60,7 @@ class Navigation(NavigationTemplate):
     # Clear the content panel and add the Key Lines form
     self.content_panel.clear()
     self.content_panel.add_component(Key_Lines_Form())
+
+  def button_5_click(self, **event_args):
+    """This method is called when the button is clicked"""
+    pass
