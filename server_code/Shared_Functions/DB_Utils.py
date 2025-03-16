@@ -405,6 +405,12 @@ def get_market_calendar_events_with_timezone(start_date, end_date, target_timezo
         # Some debug for the first event
         if len(events) == 0:
             print(f"First event in range: Date={row['date']}, Event={row['event']}")
+            # Debug all columns in the first row
+            for key in row:
+                try:
+                    print(f"  {key}: {row[key]}")
+                except:
+                    print(f"  {key}: <error accessing value>")
         
         # Convert time from UTC to target timezone
         time_str = row['time']
@@ -452,14 +458,42 @@ def get_market_calendar_events_with_timezone(start_date, end_date, target_timezo
             print(f"Error converting time {time_str}: {str(e)}")
             # converted_time already initialized with original value
         
+        # Get forecast and previous values with proper fallbacks
+        forecast_value = ''
+        previous_value = ''
+        
+        try:
+            # Handle forecast
+            if hasattr(row, 'forecast'):
+                forecast_value = row.forecast
+            elif 'forecast' in row:
+                forecast_value = row['forecast']
+        except Exception as e:
+            print(f"Error accessing forecast: {str(e)}")
+            
+        try:
+            # Handle previous
+            if hasattr(row, 'previous'):
+                previous_value = row.previous
+            elif 'previous' in row:
+                previous_value = row['previous']
+        except Exception as e:
+            print(f"Error accessing previous: {str(e)}")
+        
+        # Convert everything to strings for consistency
+        if forecast_value is None:
+            forecast_value = ''
+        if previous_value is None:
+            previous_value = ''
+            
         # Convert row to dict and format time based on timezone
         event_dict = {
             'date': row['date'].strftime("%Y-%m-%d") if hasattr(row['date'], 'strftime') else str(row['date']),
             'time': converted_time,
             'event': row['event'],
             'impact': row['impact'],
-            'forecast': str(row['forecast']) if 'forecast' in row else '',
-            'previous': str(row['previous']) if 'previous' in row else ''
+            'forecast': str(forecast_value),
+            'previous': str(previous_value)
         }
         
         # Add to events list
@@ -718,47 +752,45 @@ def convert_utc_to_eastern(utc_datetime_str, utc_format=None):
 def debug_market_calendar_table():
     """Debug function to check the market calendar table structure and permissions"""
     try:
-        # Check if we can access the table at all
         print("Attempting to access marketcalendar table...")
+        rows = app_tables.marketcalendar.search()
+        count = len(rows)
+        print(f"Successfully counted {count} rows in marketcalendar table")
         
-        # Try to get the number of rows
-        try:
-            row_count = len(list(app_tables.marketcalendar.search()))
-            print(f"Successfully counted {row_count} rows in marketcalendar table")
-        except Exception as e:
-            print(f"Error counting rows: {e}")
+        # Check a sample row
+        if count > 0:
+            sample_row = rows[0]
+            print("Warning: More than one row matched the query; returning the first row as sample.")
+            
+            try:
+                # Print all column names and values for debugging
+                print("Sample row details:")
+                for key in sample_row:
+                    print(f"Column: {key}, Value: {sample_row[key]}, Type: {type(sample_row[key])}")
+                
+                # Check if forecast and previous exist in the row
+                print(f"Has 'forecast' column: {'forecast' in sample_row}")
+                print(f"Has 'previous' column: {'previous' in sample_row}")
+                
+                if 'forecast' in sample_row:
+                    print(f"Forecast value: {sample_row['forecast']}")
+                if 'previous' in sample_row:
+                    print(f"Previous value: {sample_row['previous']}")
+            except Exception as e:
+                print(f"Error getting sample row: {str(e)}")
         
-        # Try to get a sample row
-        try:
-            rows = list(app_tables.marketcalendar.search())
-            if len(rows) == 0:
-                print("No rows found in marketcalendar table")
-            elif len(rows) > 1:
-                print("Warning: More than one row matched the query; returning the first row as sample.")
-                sample_row = rows[0]
-                print(f"Successfully got a sample row with keys: {list(sample_row.keys())}")
-                print(f"Sample row values: {dict(sample_row)}")
-            else:
-                sample_row = rows[0]
-                print(f"Successfully got a sample row with keys: {list(sample_row.keys())}")
-                print(f"Sample row values: {dict(sample_row)}")
-        except Exception as e:
-            print(f"Error getting sample row: {e}")
-        
-        # Try to get table schema
-        try:
-            # This approach works in newer Anvil versions
-            schema = app_tables.marketcalendar.list_columns()
-            print(f"Table schema: {schema}")
-        except Exception as e:
-            print(f"Error getting table schema: {e}")
+        # Get table schema
+        schema = []
+        for col in app_tables.marketcalendar.list_columns():
+            schema.append({
+                'name': col.name,
+                'type': col.type
+            })
+        print(f"Table schema: {schema}")
         
         return "Debugging completed - check server logs"
     except Exception as e:
-        print(f"Overall debug error: {e}")
-        import traceback
-        print(traceback.format_exc())
-        return f"Error: {e}"
+        return f"Error debugging: {str(e)}"
 
 @anvil.server.callable
 def populate_sample_market_events():
