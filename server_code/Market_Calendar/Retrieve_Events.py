@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 import datetime
 import re
 import pytz
+import json
 from ..Shared_Functions import DB_Utils
 
 # Constants
@@ -29,261 +30,201 @@ def _get_response_text(url):
         # If it's already a string, use it as is
         return response
 
-def _extract_site_timezone(response_text):
-    """Extract the timezone from site HTML and return timezone object"""
-    # Look for the FF settings object in the HTML
-    timezone_match = re.search(r"window\.FF\s*=\s*\{[^}]*timezone_name:\s*'([^']*)'", response_text)
-    if timezone_match:
-        site_timezone_name = timezone_match.group(1)
-        try:
-            site_timezone = pytz.timezone(site_timezone_name)
-            print(f"Extracted site timezone: {site_timezone_name}")
-            return site_timezone_name
-        except Exception as e:
-            print(f"Error setting site timezone: {e}")
-    
-    # Fall back to GMT if extraction fails
-    print("Using GMT as default timezone")
-    return "GMT"
-
-def _parse_event_date(date_text, now):
-    """Parse a date string and handle year transitions correctly"""
-    try:
-        # Add current year since it's not in the date string
-        date_with_year = f"{date_text} {now.year}"
-        # Create a datetime object
-        parsed_date = datetime.datetime.strptime(date_with_year, "%a %b %d %Y")
-        
-        # Fix year if the parsed date is too far in the past (for December->January transition)
-        if (now - parsed_date).days > 300:
-            # Create a new date with the next year
-            parsed_date = datetime.datetime(
-                now.year + 1, parsed_date.month, parsed_date.day
-            )
-        
-        return parsed_date.strftime("%Y-%m-%d")
-    except Exception as e:
-        print(f"Error parsing date '{date_text}': {e}")
-        return None
-
-def _extract_impact_level(impact_span):
-    """
-    Extract impact level from ForexFactory HTML span element
-    Returns "High", "Medium", "Low", or "" (empty string if not found)
-    """
-    if not impact_span:
-        return ""
-    
-    # Check the title attribute which contains text like "High Impact Expected"
-    impact_title = impact_span.get('title', '')
-    print(f"Processing impact span with title: '{impact_title}'")
-    
-    # Match exact wording from ForexFactory
-    if impact_title == "High Impact Expected":
-        return "High"
-    elif impact_title == "Medium Impact Expected":
-        return "Medium"
-    elif impact_title == "Low Impact Expected":
-        return "Low"
-    
-    # Fallback: Check for partial matches in case the exact wording changes
-    if "high impact" in impact_title.lower():
-        return "High"
-    elif "medium impact" in impact_title.lower() or "med impact" in impact_title.lower():
-        return "Medium"
-    elif "low impact" in impact_title.lower():
-        return "Low"
-    
-    # If title doesn't have impact info, check CSS classes
-    # ForexFactory uses classes like icon--ff-impact-red for high impact
-    class_list = impact_span.get('class', [])
-    if not isinstance(class_list, list):
-        class_list = [class_list]
-    
-    class_str = ' '.join([str(cls) for cls in class_list])
-    print(f"Impact span classes: '{class_str}'")
-    
-    if "ff-impact-red" in class_str:
-        return "High"
-    elif "ff-impact-orange" in class_str:
-        return "Medium" 
-    elif "ff-impact-yel" in class_str:
-        return "Low"
-    
-    print(f"Could not determine impact from: {impact_span}")
-    return ""
-
 def _extract_calendar_events(response_text):
     """
-    Extract calendar events from HTML response
+    Extract calendar events from the ForexFactory HTML response by parsing the embedded JavaScript data
     
-    Args:
-        response_text: HTML content from ForexFactory
-    
-    Returns:
-        List of event dictionaries
+    The ForexFactory calendar embeds all event data in a JavaScript object:
+    window.calendarComponentStates[1] = {
+        days: [{
+            "date": "Mon <span>Mar 17</span>",
+            "dateline": 1742169600,
+            "events": [{
+                "id": 142347,
+                "name": "Core Retail Sales m/m",
+                "country": "US",
+                "currency": "USD",
+                "impactClass": "icon--ff-impact-red",
+                "impactTitle": "High Impact Expected",
+                "timeLabel": "12:30pm",
+                "previous": "-0.4%",
+                "forecast": "0.3%"
+                ...
+            }]
+        }]
+    }
     """
-    if not response_text:
-        return []
-    
-    # Get current time for date parsing
-    now = datetime.datetime.now()
-    
-    # Extract site timezone
-    site_timezone = _extract_site_timezone(response_text)
-    
-    # Parse the HTML content
-    soup = BeautifulSoup(response_text, 'html.parser')
-    
-    # Find the calendar table
-    calendar_table = soup.find('table', class_='calendar__table')
-    
-    if not calendar_table:
-        print("Calendar table not found in the page")
-        print(f"First 500 chars of response: {response_text[:500]}")
-        return []
-    
-    print("Found calendar table in the HTML")
-    
-    # Extract events from the table
     events = []
-    current_date = None
-    current_time = ""  # Track the current time for grouped events
     
-    # Find all table rows
-    rows = calendar_table.find_all('tr')
-    print(f"Found {len(rows)} rows in the calendar table")
+    # Find the JavaScript data object in the HTML
+    calendar_data_pattern = r'window\.calendarComponentStates\[\d+\]\s*=\s*(\{.*?days:\s*\[.*?\]\s*,\s*time:.*?\})'
+    calendar_data_match = re.search(calendar_data_pattern, response_text, re.DOTALL)
     
-    for row in rows:
-        # Check if this is a date row
-        date_cell = row.find('td', class_='calendar__cell calendar__date')
-        if date_cell:
-            date_span = date_cell.find('span')
-            if date_span:
-                date_text = date_span.text.strip()
-                current_date = _parse_event_date(date_text, now)
-                if current_date:
-                    print(f"Parsed date: {current_date}")
+    if not calendar_data_match:
+        print("Could not find calendar data in the response")
+        return events
+    
+    # Extract the days array which contains all events
+    days_pattern = r'days:\s*(\[.*?\])'
+    days_match = re.search(days_pattern, calendar_data_match.group(1), re.DOTALL)
+    
+    if not days_match:
+        print("Could not find days array in calendar data")
+        return events
+    
+    # Parse the JavaScript object (clean it up for Python)
+    days_json = days_match.group(1)
+    # Convert JavaScript to valid JSON
+    days_json = re.sub(r'([{,])\s*(\w+):', r'\1"\2":', days_json)  # Add quotes to keys
+    days_json = re.sub(r':\s*([^",\s\[\{][^",\]\}]*?)([,\}\]])', r':"\1"\2', days_json)  # Add quotes to unquoted values
+    days_json = re.sub(r'\/\/', r'/', days_json)  # Fix escaped slashes
+    
+    try:
+        days_data = json.loads(days_json)
+    except json.JSONDecodeError as e:
+        print(f"Error parsing calendar JSON data: {e}")
+        # Try a more aggressive approach - use regex to extract individual events
+        return _extract_events_with_regex(response_text)
+    
+    # Process each day's events
+    for day_data in days_data:
+        date_text = re.sub(r'<[^>]+>', '', day_data.get('date', ''))  # Remove HTML tags
+        date_text = date_text.strip()
+        day_date = None
         
-        # Check if this is an event row
-        if 'calendar__row' in row.get('class', []) and current_date:
+        # Try to parse the date
+        try:
+            # Convert to a date object
+            day_date = datetime.datetime.fromtimestamp(int(day_data.get('dateline', 0)))
+        except (ValueError, TypeError):
+            print(f"Could not parse date from: {date_text}")
+            continue
+        
+        # Process events for this day
+        day_events = day_data.get('events', [])
+        for event_data in day_events:
             try:
-                # Get the currency
-                currency_cell = row.find('td', class_='calendar__cell calendar__currency')
-                currency = currency_cell.text.strip() if currency_cell else ''
+                # Extract basic event information
+                event_name = event_data.get('name', '')
+                country = event_data.get('country', '')
+                currency = event_data.get('currency', '')
+                time_label = event_data.get('timeLabel', '')
                 
-                # Skip non-USD events
-                if currency != USD_CURRENCY:
-                    continue
+                # Convert impact class to our standard format
+                impact_class = event_data.get('impactClass', '')
+                impact_title = event_data.get('impactTitle', '')
+                impact = _map_impact_level(impact_class, impact_title)
                 
-                # Get the event time from this row
-                time_cell = row.find('td', class_='calendar__cell calendar__time')
-                row_time = time_cell.text.strip() if time_cell else ''
+                # Get forecast and previous values
+                forecast = event_data.get('forecast', '')
+                previous = event_data.get('previous', '')
                 
-                # If no time is found in the cell directly, try additional extraction methods
-                if not row_time:
-                    # Method 1: Look for a timeLabel in calendar__time divs
-                    time_div = row.find('div', class_='calendar__time')
-                    if time_div:
-                        row_time = time_div.text.strip()
-                        print(f"Found time in calendar__time div: '{row_time}'")
-                    
-                    # Method 2: Try to find time in the event attributes
-                    if not row_time and 'id' in row.attrs:
-                        event_id = row['id']
-                        # Extract event ID number
-                        id_match = re.search(r'(\d+)', event_id)
-                        if id_match:
-                            event_id_num = id_match.group(1)
-                            # Look for this ID in the page's JavaScript data
-                            script_tags = soup.find_all('script')
-                            for script_tag in script_tags:
-                                script_text = script_tag.string
-                                if script_text and f'id":{event_id_num}' in script_text:
-                                    # Try to extract timeLabel
-                                    time_match = re.search(r'timeLabel":"([^"]+)"', script_text)
-                                    if time_match:
-                                        row_time = time_match.group(1)
-                                        print(f"Found time in script data: '{row_time}'")
-                                        break
-                    
-                    # Method 3: Look for specific events that we know should have 12:30pm time
-                    if not row_time:
-                        known_1230pm_events = ["Core Retail Sales m/m", "Retail Sales m/m", "Empire State Manufacturing Index"]
-                        event_name_cell = row.find('td', class_='calendar__cell calendar__event')
-                        if event_name_cell:
-                            event_name_text = event_name_cell.text.strip()
-                            if event_name_text in known_1230pm_events:
-                                # Hard-code the time as a last resort for these specific events
-                                row_time = "12:30pm"
-                                print(f"Applied known time '12:30pm' to event: {event_name_text}")
-
-                # If this row has a time, update our current_time tracker
-                if row_time:
-                    current_time = row_time
-                    print(f"Found new time marker: '{current_time}'")
+                # Create event datetime (combining date with time)
+                event_datetime = day_date
+                if time_label:
+                    # Parse the time (e.g., "12:30pm") and add it to the date
+                    try:
+                        # ForexFactory uses 12-hour format with am/pm
+                        time_parts = re.match(r'(\d+):(\d+)(am|pm)', time_label.lower())
+                        if time_parts:
+                            hour = int(time_parts.group(1))
+                            minute = int(time_parts.group(2))
+                            am_pm = time_parts.group(3)
+                            
+                            # Convert to 24-hour format
+                            if am_pm == 'pm' and hour < 12:
+                                hour += 12
+                            elif am_pm == 'am' and hour == 12:
+                                hour = 0
+                            
+                            # Update the event datetime
+                            event_datetime = event_datetime.replace(hour=hour, minute=minute)
+                    except Exception as e:
+                        print(f"Error parsing time '{time_label}' for event '{event_name}': {e}")
                 
-                # Log the time we're using for this event (from this row or carried forward)
-                print(f"Using time for this event: '{current_time}'")
-                
-                # Get the event name
-                event_cell = row.find('td', class_='calendar__cell calendar__event')
-                event_name = event_cell.text.strip() if event_cell else ''
-                
-                # Extract impact level
-                impact_cell = row.find('td', class_='calendar__cell calendar__impact')
-                impact = ""
-                if impact_cell:
-                    # Extract the impact span element - this contains the impact indicator
-                    impact_span = impact_cell.find('span', class_=lambda c: c and ('icon--ff-impact' in c or 'universal-impact' in c))
-                    
-                    if not impact_span:
-                        # Try a more general approach if the specific class search fails
-                        impact_span = impact_cell.find('span')
-                    
-                    if impact_span:
-                        # Log the raw span for debugging
-                        print(f"Found impact span: {impact_span}")
-                        
-                        # Use our helper function to determine impact level
-                        impact = _extract_impact_level(impact_span)
-                        
-                        # Make sure impact is capitalized properly
-                        if impact:
-                            impact = impact.capitalize()
-                
-                # Log the final impact
-                print(f"Final impact for '{event_name}': '{impact}'")
-                
-                # Get forecast value
-                forecast_cell = row.find('td', class_='calendar__cell calendar__forecast')
-                forecast = forecast_cell.text.strip() if forecast_cell else ''
-                
-                # Get previous value
-                previous_cell = row.find('td', class_='calendar__cell calendar__previous')
-                previous = previous_cell.text.strip() if previous_cell else ''
-                
-                # Save the event in our list, using the current time (which may be from an earlier row)
-                event_data = {
-                    'date': current_date,
-                    'time': current_time,  # This may come from an earlier row
+                # Build the event object
+                event = {
+                    'name': event_name,
+                    'date': event_datetime.strftime('%Y-%m-%d'),
+                    'time': event_datetime.strftime('%H:%M'),
+                    'country': country,
                     'currency': currency,
-                    'event': event_name,
                     'impact': impact,
                     'forecast': forecast,
                     'previous': previous,
-                    'timezone': site_timezone  # Store site's timezone for reference
+                    'source': 'ForexFactory'
                 }
                 
-                # Print the event data for debugging
-                print(f"Creating event with time: '{current_time}' for {event_name}")
-                
-                events.append(event_data)
+                print(f"Extracted event: {event_name} at {time_label} with impact {impact}")
+                events.append(event)
                 
             except Exception as e:
-                print(f"Error extracting event data from row: {e}")
+                print(f"Error processing event: {e}")
+                continue
     
-    print(f"Extracted {len(events)} USD events from the calendar")
+    return events
+
+def _map_impact_level(impact_class, impact_title):
+    """Map ForexFactory impact class/title to our standard impact levels"""
+    if 'ff-impact-red' in impact_class or 'High Impact' in impact_title:
+        return 'High'
+    elif 'ff-impact-ora' in impact_class or 'Medium Impact' in impact_title:
+        return 'Medium'
+    elif 'ff-impact-yel' in impact_class or 'Low Impact' in impact_title:
+        return 'Low'
+    else:
+        return ''
+
+def _extract_events_with_regex(response_text):
+    """Fallback method to extract events using regex if JSON parsing fails"""
+    events = []
+    
+    # Look for individual event objects in the JavaScript
+    event_pattern = r'"id":\s*(\d+).*?"name":\s*"([^"]+)".*?"country":\s*"([^"]+)".*?"currency":\s*"([^"]+)".*?"impactClass":\s*"([^"]+)".*?"timeLabel":\s*"([^"]+)".*?"previous":\s*"([^"]*)".*?"forecast":\s*"([^"]*)".*?"date":\s*"([^"]+)"'
+    
+    for match in re.finditer(event_pattern, response_text, re.DOTALL):
+        event_id, name, country, currency, impact_class, time_label, previous, forecast, date_str = match.groups()
+        
+        # Parse the date string
+        try:
+            date_parts = date_str.split(', ')
+            if len(date_parts) == 2:
+                date_obj = datetime.datetime.strptime(date_parts[1], '%Y')  # Just get the year
+                month_day = date_parts[0].split(' ')
+                if len(month_day) == 2:
+                    month = month_day[0]
+                    day = month_day[1]
+                    # Convert month name to number
+                    month_num = {
+                        'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
+                        'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
+                    }.get(month, 1)
+                    
+                    date_obj = date_obj.replace(month=month_num, day=int(day))
+            else:
+                # If date parsing fails, use today's date as a fallback
+                date_obj = datetime.datetime.now()
+        except Exception:
+            date_obj = datetime.datetime.now()
+        
+        # Map impact level
+        impact = _map_impact_level(impact_class, "")
+        
+        # Create the event
+        event = {
+            'name': name,
+            'date': date_obj.strftime('%Y-%m-%d'),
+            'time': time_label,  # Keep original time format as fallback
+            'country': country,
+            'currency': currency,
+            'impact': impact,
+            'forecast': forecast,
+            'previous': previous,
+            'source': 'ForexFactory'
+        }
+        
+        events.append(event)
+    
     return events
 
 def _fetch_and_save_events(url):
