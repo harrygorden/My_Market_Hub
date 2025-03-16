@@ -66,7 +66,6 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
   def drop_down_time_zone_change(self, **event_args):
     """This method is called when the time zone is changed"""
     self.refresh_events()
-    self.update_high_impact_countdown()
     
   def drop_down_time_range_change(self, **event_args):
     """This method is called when the date range is changed"""
@@ -86,14 +85,11 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
   
   def update_high_impact_countdown(self):
     """Fetch the next high impact event and prepare countdown data"""
-    # Get the selected timezone
-    selected_timezone = self.drop_down_time_zone.selected_value
-    
-    # Store the timezone for display purposes only
-    self.display_timezone = selected_timezone
-    
-    # For countdown calculation, always use UTC to ensure consistency
+    # For countdown calculation, always use UTC
     timezone_for_event = "UTC"
+    
+    # For display, always use Eastern
+    self.display_timezone = "Eastern"
     
     # Call server to get the next high impact event
     try:
@@ -220,14 +216,11 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
           # For dates further away, use the month and day
           friendly_day = event_date.strftime("%B %d")
       
-      # Get timezone display name
-      timezone_name = self.display_timezone if hasattr(self, 'display_timezone') and self.display_timezone else "UTC"
-      
       # Update the rich text content with the new format
       self.rich_text_high_impact_event_countdown.content = (
         f"Next High Impact Event\n\n"
         f"{countdown_text}\n\n"
-        f"{event_name}\n{friendly_day} at {event_time_str} ({timezone_name})"
+        f"{event_name}\n{friendly_day} at {event_time_str} (Eastern)"
       )
     except Exception as e:
       print(f"Error updating countdown: {type(e).__name__} - {str(e)}")
