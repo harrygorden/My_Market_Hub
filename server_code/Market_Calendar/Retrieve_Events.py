@@ -14,80 +14,123 @@ DEFAULT_TIMEZONE = "America/New_York"  # Default to Eastern time if we can't det
 VERBOSE_LOGGING = True  # Set to False to reduce logging verbosity
 
 # Helper Functions
-def _get_response_text(url):
-    """Helper function to fetch and process HTTP responses"""
-    print(f"Sending HTTP request to {url}")
-    response = anvil.http.request(url, json=False)
+def _get_response_text(url, verbose=VERBOSE_LOGGING):
+    """
+    Send an HTTP request to retrieve the calendar page content
     
-    if not response:
-        print("Failed to retrieve the calendar page")
-        return None
-    
-    print("Successfully retrieved calendar page")
-    
-    # Convert the response to a string if it's a streaming object
+    Args:
+        url (str): Calendar page URL
+        verbose (bool): Whether to print detailed logs
+        
+    Returns:
+        str: HTML response text
+    """
     try:
-        return response.get_bytes().decode('utf-8')
-    except AttributeError:
-        # If it's already a string, use it as is
+        if verbose:
+            print(f"Sending HTTP request to {url}")
+        
+        # Use the Anvil HTTP library to fetch the URL content
+        response = anvil.http.request(url, method="GET")
+        
+        if verbose:
+            print("Successfully retrieved calendar page")
+        
         return response
+    except Exception as e:
+        print(f"Error fetching URL {url}: {str(e)}")
+        return ""
 
-def _detect_site_timezone(response_text):
-    """Extract the timezone information from the site response"""
-    # First try to find a proper IANA timezone string
-    timezone_pattern = r'timezone:\s*[\'"]([^\'"]+)[\'"]'
-    timezone_match = re.search(timezone_pattern, response_text)
+def _detect_site_timezone(response_text, verbose=VERBOSE_LOGGING):
+    """
+    Detect the timezone used by the Forex Factory website
     
-    if timezone_match:
-        detected_timezone = timezone_match.group(1)
-        print(f"Extracted site timezone: {detected_timezone}")
+    Args:
+        response_text (str): HTML response text
+        verbose (bool): Whether to print detailed logs
         
-        # Handle numeric timezone values (like "0" for GMT/UTC)
-        if detected_timezone.isdigit() or (detected_timezone.startswith('-') and detected_timezone[1:].isdigit()):
-            try:
-                # Convert numeric offset to hours
-                offset = int(detected_timezone)
-                if offset == 0:
-                    # If offset is 0, it's UTC/GMT
-                    print(f"Numeric timezone '{detected_timezone}' detected as UTC/GMT")
-                    return "UTC"
-                else:
-                    # For other offsets, calculate proper timezone
-                    # This is a simplification - for production, you'd want a mapping of offsets to timezones
-                    # For now, we'll default to UTC and log the issue
-                    print(f"Numeric timezone offset {offset} defaulting to UTC")
-                    return "UTC"
-            except ValueError:
-                print(f"Invalid numeric timezone: {detected_timezone}, falling back to default")
-                return DEFAULT_TIMEZONE
+    Returns:
+        str: Timezone string (e.g., 'US/Eastern')
+    """
+    if not response_text:
+        if verbose:
+            print("No response text to detect timezone, using default")
+        return DEFAULT_TIMEZONE
         
-        # Try to use the string as a timezone identifier
-        try:
-            # Verify it's a valid timezone
-            pytz.timezone(detected_timezone)
-            return detected_timezone
-        except pytz.exceptions.UnknownTimeZoneError:
-            print(f"Unknown timezone: {detected_timezone}, falling back to default")
-    else:
-        # Try to find other timezone indicators in the page
-        # Look for mentions of timezone in the text
-        tz_mention_pattern = r'All times are GMT[+\-]?(\d*)'
-        tz_mention = re.search(tz_mention_pattern, response_text)
-        if tz_mention:
-            offset_str = tz_mention.group(1)
-            if offset_str == '' or offset_str == '0':
-                print("Detected GMT+0 timezone from page text")
-                return "UTC"
-            else:
-                print(f"Detected GMT{offset_str} timezone from page text, using UTC")
-                return "UTC"
-                
-        print("No timezone information found in the response")
+    # Try to find timezone information in the meta tags or text
+    timezone_pattern = r'timezone=([^"&]+)'
+    match = re.search(timezone_pattern, response_text)
     
-    # If no timezone found or it's invalid, use default
+    if match:
+        timezone_value = match.group(1)
+        if verbose:
+            print(f"Extracted site timezone: {timezone_value}")
+        
+        # Check if it's a numeric timezone (e.g., "0" for UTC)
+        if timezone_value.strip().lstrip('-').isdigit() or timezone_value.strip() == "0":
+            if verbose:
+                print(f"Numeric timezone '{timezone_value}' detected as UTC/GMT")
+            return "UTC"  # Treat numeric timezones as UTC/GMT
+        
+        # Add common timezone mappings if needed
+        timezone_mappings = {
+            'est': 'US/Eastern',
+            'edt': 'US/Eastern',
+            'eastern': 'US/Eastern',
+            'cst': 'US/Central',
+            'cdt': 'US/Central',
+            'central': 'US/Central',
+            'mst': 'US/Mountain',
+            'mdt': 'US/Mountain',
+            'mountain': 'US/Mountain',
+            'pst': 'US/Pacific',
+            'pdt': 'US/Pacific',
+            'pacific': 'US/Pacific',
+            'gmt': 'UTC',
+            'utc': 'UTC',
+        }
+        
+        # Convert to lowercase for case-insensitive matching
+        timezone_key = timezone_value.lower()
+        
+        if timezone_key in timezone_mappings:
+            return timezone_mappings[timezone_key]
+        
+        return timezone_value  # Return as-is if no mapping found
+    
+    # For ForexFactory site: Look for timezone indicator in the page content
+    # Sometimes the timezone is shown in text like "All times are GMT" or similar
+    time_indicator_pattern = r'All times are ([A-Z]{3})'
+    match = re.search(time_indicator_pattern, response_text)
+    
+    if match:
+        timezone_abbreviation = match.group(1)
+        
+        # Map common abbreviations
+        timezone_abbr_map = {
+            'GMT': 'UTC',
+            'UTC': 'UTC',
+            'EST': 'US/Eastern',
+            'EDT': 'US/Eastern',
+            'CST': 'US/Central',
+            'CDT': 'US/Central',
+            'MST': 'US/Mountain',
+            'MDT': 'US/Mountain',
+            'PST': 'US/Pacific',
+            'PDT': 'US/Pacific',
+        }
+        
+        if timezone_abbreviation in timezone_abbr_map:
+            if verbose:
+                print(f"Found timezone indicator: {timezone_abbreviation}")
+            return timezone_abbr_map[timezone_abbreviation]
+    
+    # If we couldn't detect the timezone, default to Eastern Time
+    # This is common for US market calendar sites
+    if verbose:
+        print("Could not detect timezone, using default (Eastern)")
     return DEFAULT_TIMEZONE
 
-def _convert_to_utc(dt, source_timezone):
+def _convert_to_utc(dt, source_timezone, verbose=VERBOSE_LOGGING):
     """Convert a datetime from source timezone to UTC"""
     if not dt:
         return dt
@@ -98,95 +141,67 @@ def _convert_to_utc(dt, source_timezone):
     
     # Convert to UTC
     utc_dt = aware_dt.astimezone(pytz.UTC)
-    print(f"Converted {dt} ({source_timezone}) to UTC: {utc_dt}")
+    if verbose:
+        print(f"Converted {dt} ({source_timezone}) to UTC: {utc_dt}")
     
     return utc_dt
 
-def _extract_calendar_events(response_text):
+def _extract_events_from_javascript(response_text, source_timezone=DEFAULT_TIMEZONE, verbose=VERBOSE_LOGGING):
     """
-    Extract calendar events from the ForexFactory HTML response by parsing the embedded JavaScript data
+    Extract events from the JavaScript data in the ForexFactory calendar page
     
-    The ForexFactory calendar embeds all event data in a JavaScript object:
-    window.calendarComponentStates[1] = {
-        days: [{
-            "date": "Mon <span>Mar 17</span>",
-            "dateline": 1742169600,
-            "events": [{
-                "id": 142347,
-                "name": "Core Retail Sales m/m",
-                "country": "US",
-                "currency": "USD",
-                "impactClass": "icon--ff-impact-red",
-                "impactTitle": "High Impact Expected",
-                "timeLabel": "12:30pm",
-                "previous": "-0.4%",
-                "forecast": "0.3%"
-                ...
-            }]
-        }]
-    }
+    Args:
+        response_text (str): HTML response text
+        source_timezone (str): Timezone of the calendar page
+        verbose (bool): Whether to print detailed logs
+        
+    Returns:
+        list: List of event dictionaries
     """
     events = []
     
-    # Detect the site's timezone
-    source_timezone = _detect_site_timezone(response_text)
-    
     try:
-        print("\nExtracting calendar events from JavaScript data")
+        # Find the calendar data in the JavaScript
+        calendar_data_pattern = r'var\s+calendarJSON\s*=\s*({[^;]+});'
+        match = re.search(calendar_data_pattern, response_text)
         
-        # Find the JavaScript data object in the HTML
-        calendar_data_pattern = r'window\.calendarComponentStates\[\d+\]\s*=\s*(\{.*?days:\s*\[.*?\]\s*,\s*time:.*?\});'
-        calendar_data_match = re.search(calendar_data_pattern, response_text, re.DOTALL)
+        if not match:
+            if verbose:
+                print("Could not find calendar data in JavaScript")
+            return _extract_events_with_regex(response_text, source_timezone, verbose)
         
-        if not calendar_data_match:
-            print("Could not find calendar data in the response")
-            return _extract_events_with_regex(response_text, source_timezone)
+        if verbose:
+            print("Found calendar data in JavaScript")
         
-        print("Found calendar data in JavaScript")
+        # Extract the calendar JSON data
+        calendar_json = match.group(1)
         
-        # Extract the days array which contains all events
-        days_pattern = r'days:\s*(\[.*?\])'
-        days_match = re.search(days_pattern, calendar_data_match.group(1), re.DOTALL)
+        # Extract the days array from the calendar data
+        days_pattern = r'"days"\s*:\s*(\[[^]]*\])'
+        days_match = re.search(days_pattern, calendar_json)
         
         if not days_match:
-            print("Could not find days array in calendar data")
-            return _extract_events_with_regex(response_text, source_timezone)
+            if verbose:
+                print("Could not find days array in calendar data")
+            return _extract_events_with_regex(response_text, source_timezone, verbose)
         
-        print("Found days array in calendar data")
+        if verbose:
+            print("Found days array in calendar data")
         
-        # Parse the JavaScript object (clean it up for Python)
         days_json = days_match.group(1)
         
-        # Handle problematic JSON content in multiple steps
-        # Step 1: Add quotes to keys
-        days_json = re.sub(r'([{,])\s*(\w+):', r'\1"\2":', days_json)
-        
-        # Step 2: Fix escaped slashes
-        days_json = days_json.replace('\\/', '/')
-        
-        # Step 3: Fix any unquoted values, carefully avoiding arrays and objects
-        days_json = re.sub(r':\s*([^",\s\[\{][^",\]\}]*?)([,\}\]])', r':"\1"\2', days_json)
-        
-        # Step 4: Fix boolean values to be proper JSON
-        days_json = re.sub(r':(\s*)(true|false)([,\}\]])', r':\1\2\3', days_json)
-        
-        # Step 5: Handle the "firstInDay:true" pattern specifically
-        days_json = re.sub(r'"firstInDay":true', r'"firstInDay":true', days_json)
-        days_json = re.sub(r'"firstInDay":false', r'"firstInDay":false', days_json)
-        
-        # Step 6: Try to fix any other issues that might cause JSON parsing to fail
-        # Remove any trailing commas in arrays or objects
-        days_json = re.sub(r',(\s*[\]\}])', r'\1', days_json)
-        
-        print(f"Processing JSON data...")
+        if verbose:
+            print(f"Processing JSON data...")
         
         try:
             days_data = json.loads(days_json)
-            print("Successfully parsed days JSON data")
+            if verbose:
+                print("Successfully parsed days JSON data")
         except json.JSONDecodeError as e:
-            print(f"Error parsing days JSON: {e}")
+            if verbose:
+                print(f"Error parsing days JSON: {e}")
             # Fall back to regex approach
-            return _extract_events_with_regex(response_text, source_timezone)
+            return _extract_events_with_regex(response_text, source_timezone, verbose)
         
         # Process each day's events
         for day_data in days_data:
@@ -198,14 +213,17 @@ def _extract_calendar_events(response_text):
             try:
                 # Convert to a date object
                 day_date = datetime.datetime.fromtimestamp(int(day_data.get('dateline', 0)))
-                print(f"Processing date: {day_date.strftime('%Y-%m-%d')}")
+                if verbose:
+                    print(f"Processing date: {day_date.strftime('%Y-%m-%d')}")
             except (ValueError, TypeError):
-                print(f"Could not parse date from: {date_text}")
+                if verbose:
+                    print(f"Could not parse date from: {date_text}")
                 continue
             
             # Process events for this day
             day_events = day_data.get('events', [])
-            print(f"Found {len(day_events)} events for this day")
+            if verbose:
+                print(f"Found {len(day_events)} events for this day")
             
             for event_data in day_events:
                 try:
@@ -249,10 +267,11 @@ def _extract_calendar_events(response_text):
                                 # Update the event datetime
                                 event_datetime = event_datetime.replace(hour=hour, minute=minute)
                         except Exception as e:
-                            print(f"Error parsing time '{time_label}' for event '{event_name}': {e}")
+                            if verbose:
+                                print(f"Error parsing time '{time_label}' for event '{event_name}': {e}")
                     
                     # Convert the event datetime to UTC
-                    utc_event_datetime = _convert_to_utc(event_datetime, source_timezone)
+                    utc_event_datetime = _convert_to_utc(event_datetime, source_timezone, verbose)
                     
                     # Build the event object - Use 'event' as the key instead of 'name' for compatibility
                     event = {
@@ -267,31 +286,47 @@ def _extract_calendar_events(response_text):
                         'timezone': 'UTC'  # Store timezone information
                     }
                     
-                    print(f"Extracted event: {event_name} at {time_label} with impact {impact}")
+                    if verbose:
+                        print(f"Extracted event: {event_name} at {time_label} with impact {impact}")
                     events.append(event)
                     
                 except Exception as e:
-                    print(f"Error processing event: {e}")
+                    if verbose:
+                        print(f"Error processing event: {e}")
                     continue
         
     except Exception as e:
-        print(f"Exception in calendar extraction: {e}")
+        if verbose:
+            print(f"Exception in calendar extraction: {e}")
         # Fall back to regex approach
-        return _extract_events_with_regex(response_text, source_timezone)
+        return _extract_events_with_regex(response_text, source_timezone, verbose)
     
-    print(f"Extracted {len(events)} total events")
+    if verbose:
+        print(f"Extracted {len(events)} total events")
     return events
 
-def _extract_events_with_regex(response_text, source_timezone=DEFAULT_TIMEZONE):
-    """Fallback method to extract events using regex if JSON parsing fails"""
-    print("Using regex fallback method to extract events")
+def _extract_events_with_regex(response_text, source_timezone=DEFAULT_TIMEZONE, verbose=VERBOSE_LOGGING):
+    """
+    Fallback method to extract events using regex if JSON parsing fails
+    
+    Args:
+        response_text (str): HTML response text
+        source_timezone (str): Timezone of the calendar page
+        verbose (bool): Whether to print detailed logs
+        
+    Returns:
+        list: List of event dictionaries
+    """
+    if verbose:
+        print("Using regex fallback method to extract events")
     events = []
     
     # Look for individual event objects in the JavaScript
     event_pattern = r'"id":\s*(\d+).*?"name":\s*"([^"]+)".*?"country":\s*"([^"]+)".*?"currency":\s*"([^"]+)".*?"impactClass":\s*"([^"]+)".*?"timeLabel":\s*"([^"]+)".*?"previous":\s*"([^"]*)".*?"forecast":\s*"([^"]*)".*?"date":\s*"([^"]+)"'
     
     event_matches = list(re.finditer(event_pattern, response_text, re.DOTALL))
-    print(f"Found {len(event_matches)} event matches using regex")
+    if verbose:
+        print(f"Found {len(event_matches)} event matches using regex")
     
     for match in event_matches:
         try:
@@ -349,7 +384,7 @@ def _extract_events_with_regex(response_text, source_timezone=DEFAULT_TIMEZONE):
                     pass
             
             # Convert to UTC
-            utc_event_datetime = _convert_to_utc(event_datetime, source_timezone)
+            utc_event_datetime = _convert_to_utc(event_datetime, source_timezone, verbose)
             event_time = utc_event_datetime.strftime('%H:%M')
             
             # Create the event - Use 'event' as the key instead of 'name' for compatibility
@@ -365,12 +400,15 @@ def _extract_events_with_regex(response_text, source_timezone=DEFAULT_TIMEZONE):
                 'timezone': 'UTC'  # Store timezone information
             }
             
-            print(f"Extracted event via regex: {name} at {time_label} with impact {impact}")
+            if verbose:
+                print(f"Extracted event via regex: {name} at {time_label} with impact {impact}")
             events.append(event)
         except Exception as e:
-            print(f"Error processing regex match: {e}")
+            if verbose:
+                print(f"Error processing regex match: {e}")
     
-    print(f"Extracted {len(events)} total events via regex")
+    if verbose:
+        print(f"Extracted {len(events)} total events via regex")
     return events
 
 def _map_impact_level(impact_class, impact_title):
@@ -396,13 +434,13 @@ def _fetch_and_save_events(url, verbose=VERBOSE_LOGGING):
         dict: Statistics about processed events
     """
     # Get the HTML response
-    response_text = _get_response_text(url)
+    response_text = _get_response_text(url, verbose)
     if not response_text:
         print(f"Failed to get response from {url}")
         return {"total": 0, "existing": 0, "new": 0}
     
     # Extract events from the HTML
-    events = _extract_calendar_events(response_text)
+    events = _extract_events_from_javascript(response_text, verbose=verbose)
     if not events:
         print("No events extracted from the page")
         return {"total": 0, "existing": 0, "new": 0}
@@ -425,11 +463,15 @@ def fetch_tomorrow_events(verbose=VERBOSE_LOGGING):
     """
     Fetch and save market calendar events for tomorrow from ForexFactory
     
+    Args:
+        verbose: Whether to print detailed logs
+    
     Returns:
         dict: Statistics about processed events
     """
     url = f"{FOREXFACTORY_BASE_URL}?day=tomorrow"
-    print(f"Fetching tomorrow's events from: {url}")
+    if verbose:
+        print(f"Fetching tomorrow's events from: {url}")
     
     return _fetch_and_save_events(url, verbose)
 
@@ -438,11 +480,15 @@ def fetch_this_week_events(verbose=VERBOSE_LOGGING):
     """
     Fetch and save market calendar events for the current week from ForexFactory
     
+    Args:
+        verbose: Whether to print detailed logs
+    
     Returns:
         dict: Statistics about processed events
     """
     url = f"{FOREXFACTORY_BASE_URL}?week=this"
-    print(f"Fetching this week's events from: {url}")
+    if verbose:
+        print(f"Fetching this week's events from: {url}")
     
     return _fetch_and_save_events(url, verbose)
 
@@ -451,11 +497,15 @@ def fetch_next_week_events(verbose=VERBOSE_LOGGING):
     """
     Fetch and save market calendar events for next week from ForexFactory
     
+    Args:
+        verbose: Whether to print detailed logs
+    
     Returns:
         dict: Statistics about processed events
     """
     url = f"{FOREXFACTORY_BASE_URL}?week=next"
-    print(f"Fetching next week's events from: {url}")
+    if verbose:
+        print(f"Fetching next week's events from: {url}")
     
     return _fetch_and_save_events(url, verbose)
 
@@ -464,11 +514,15 @@ def fetch_this_month_events(verbose=VERBOSE_LOGGING):
     """
     Fetch and save market calendar events for the current month from ForexFactory
     
+    Args:
+        verbose: Whether to print detailed logs
+    
     Returns:
         dict: Statistics about processed events
     """
     url = f"{FOREXFACTORY_BASE_URL}?month=this"
-    print(f"Fetching this month's events from: {url}")
+    if verbose:
+        print(f"Fetching this month's events from: {url}")
     
     return _fetch_and_save_events(url, verbose)
 
@@ -477,11 +531,15 @@ def fetch_next_month_events(verbose=VERBOSE_LOGGING):
     """
     Fetch and save market calendar events for next month from ForexFactory
     
+    Args:
+        verbose: Whether to print detailed logs
+    
     Returns:
         dict: Statistics about processed events
     """
     url = f"{FOREXFACTORY_BASE_URL}?month=next"
-    print(f"Fetching next month's events from: {url}")
+    if verbose:
+        print(f"Fetching next month's events from: {url}")
     
     return _fetch_and_save_events(url, verbose)
 
@@ -493,14 +551,11 @@ def refresh_all_calendars(verbose=False):
     with condensed logging output that only shows the final statistics.
     
     Args:
-        verbose: Whether to print detailed logs for individual events
+        verbose: Whether to print detailed logs
     
     Returns:
         dict: Combined statistics for all time ranges
     """
-    # Override the global verbose setting temporarily
-    original_verbose = VERBOSE_LOGGING
-    
     # Initialize combined statistics
     combined_stats = {
         "total": 0,
@@ -518,33 +573,31 @@ def refresh_all_calendars(verbose=False):
         "next_month": fetch_next_month_events
     }
     
-    try:
-        for period_name, fetch_function in time_ranges.items():
+    for period_name, fetch_function in time_ranges.items():
+        if verbose:
             print(f"\nProcessing {period_name} calendar...")
-            # Pass the verbose flag to the fetch function
-            stats = fetch_function(verbose=verbose)
-            
-            # Add to combined totals
-            combined_stats["total"] += stats["total"]
-            combined_stats["existing"] += stats["existing"]
-            combined_stats["new"] += stats["new"]
-            
-            # Store individual statistics
-            combined_stats["details"][period_name] = stats
+        else:
+            print(f"Processing {period_name}...")
         
-        # Print combined statistics
-        print("\n=== COMBINED EVENT PROCESSING SUMMARY ===")
-        print(f"Total Scraped Events: {combined_stats['total']}")
-        print(f"Skipped (existing) events: {combined_stats['existing']}")
-        print(f"Newly added events: {combined_stats['new']}")
-        print("=======================================\n")
+        # Pass the verbose flag to the fetch function
+        stats = fetch_function(verbose=verbose)
         
-        return combined_stats
-    finally:
-        # Reset the verbose setting back to the original value
-        # This isn't actually needed since we're not modifying the global value
-        # but included for clarity and future-proofing
-        pass
+        # Add to combined totals
+        combined_stats["total"] += stats["total"]
+        combined_stats["existing"] += stats["existing"]
+        combined_stats["new"] += stats["new"]
+        
+        # Store individual statistics
+        combined_stats["details"][period_name] = stats
+    
+    # Always print combined statistics (even in non-verbose mode)
+    print("\n=== COMBINED EVENT PROCESSING SUMMARY ===")
+    print(f"Total Scraped Events: {combined_stats['total']}")
+    print(f"Skipped (existing) events: {combined_stats['existing']}")
+    print(f"Newly added events: {combined_stats['new']}")
+    print("=======================================\n")
+    
+    return combined_stats
 
 @anvil.server.callable
 def retrieve_market_calendar_events():
