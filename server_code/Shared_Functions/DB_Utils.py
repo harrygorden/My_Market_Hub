@@ -458,8 +458,8 @@ def get_market_calendar_events_with_timezone(start_date, end_date, target_timezo
             'time': converted_time,
             'event': row['event'],
             'impact': row['impact'],
-            'forecast': row['forecast'] if 'forecast' in row else '',
-            'previous': row['previous'] if 'previous' in row else ''
+            'forecast': str(row.get('forecast', '')),
+            'previous': str(row.get('previous', ''))
         }
         
         # Add to events list
