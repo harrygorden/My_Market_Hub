@@ -4,10 +4,41 @@ components:
     name: rich_text_1
     properties: {align: center, content: Upcoming Events, font_size: 40}
     type: RichText
-  - layout_properties: {grid_position: 'GBSJUM,DYJPZY'}
-    name: rich_text_2
-    properties: {content: '', font_size: 20}
-    type: RichText
+  - components:
+    - layout_properties: {grid_position: 'JJOBQI,JOJRQP'}
+      name: drop_down_time_range
+      properties:
+        include_placeholder: false
+        items: [Today, Tomorrow, This Week, Next Week, This Month, Next Month]
+      type: DropDown
+    - data_bindings: []
+      event_bindings: {change: drop_down_time_zone_change}
+      layout_properties: {grid_position: 'JJOBQI,VPMMDT'}
+      name: drop_down_time_zone
+      properties:
+        items: [UTC, Eastern, Central, Mountain, Pacific]
+      type: DropDown
+    - components:
+      - name: repeating_panel_1
+        properties: {item_template: Upcoming_Events_Form.RowTemplate1}
+        type: RepeatingPanel
+      layout_properties: {grid_position: 'LRYAAB,RJJLUA'}
+      name: data_grid_market_events
+      properties:
+        background: theme:Primary Container
+        columns:
+        - {data_key: date, id: KMCFYF, title: date}
+        - {data_key: time, id: FCPXRI, title: time}
+        - {data_key: event, id: YOZLSI, title: event}
+        - {data_key: impact, id: EMAMUM, title: impact}
+        - {data_key: forecast, id: ISSGTE, title: forecast}
+        - {data_key: previous, id: OMMDHK, title: previous}
+        role: tonal-data-grid
+      type: DataGrid
+    layout_properties: {full_width_row: false, grid_position: 'FBNCGY,NSPYHY'}
+    name: outlined_card_2
+    properties: {background: 'theme:Primary', role: outlined-card}
+    type: ColumnPanel
   layout_properties: {full_width_row: false, grid_position: 'BUKIIE,CNIBMO'}
   name: outlined_card_1
   properties:
