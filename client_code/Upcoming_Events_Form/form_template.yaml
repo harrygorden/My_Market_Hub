@@ -24,64 +24,51 @@ components:
     properties: {background: 'theme:Primary', role: outlined-card}
     type: ColumnPanel
   - components:
+    - event_bindings: {change: drop_down_time_range_change}
+      layout_properties: {grid_position: 'JJOBQI,JOJRQP'}
+      name: drop_down_time_range
+      properties:
+        include_placeholder: false
+        items: [Today, Tomorrow, This Week, Next Week, This Month, Next Month]
+      type: DropDown
+    - data_bindings: []
+      event_bindings: {change: drop_down_time_zone_change}
+      layout_properties: {grid_position: 'JJOBQI,VPMMDT'}
+      name: drop_down_time_zone
+      properties:
+        items: [UTC, Eastern, Central, Mountain, Pacific]
+      type: DropDown
     - components:
-      - layout_properties: {grid_position: 'HIOOUZ,YCNNYJ'}
-        name: spacer_3
+      - layout_properties: {grid_position: 'WWQICA,GXHYIN UBABNF,JKWFVP'}
+        name: spacer_1
         properties: {height: 32}
         type: Spacer
-      - event_bindings: {change: drop_down_time_range_change}
-        layout_properties: {grid_position: 'HIOOUZ,XMUYKG'}
-        name: drop_down_time_range
-        properties:
-          include_placeholder: false
-          items: [Today, Tomorrow, This Week, Next Week, This Month, Next Month]
-        type: DropDown
-      - data_bindings: []
-        event_bindings: {change: drop_down_time_zone_change}
-        layout_properties: {grid_position: 'HIOOUZ,LCGXMN'}
-        name: drop_down_time_zone
-        properties:
-          items: [UTC, Eastern, Central, Mountain, Pacific]
-        type: DropDown
-      - layout_properties: {grid_position: 'HIOOUZ,KNKPIF'}
-        name: spacer_4
+      - layout_properties: {grid_position: 'WWQICA,GXHYIN UBABNF,PFNRZB PONTNU,WIFZIN'}
+        name: rich_text_2
+        properties: {align: center, content: 'Select desired impact:', font_size: 18, spacing_above: none, spacing_below: none}
+        type: RichText
+      - event_bindings: {change: check_box_low_change}
+        layout_properties: {grid_position: 'WWQICA,GXHYIN UBABNF,PFNRZB TNFNGN,QKMIIU'}
+        name: check_box_low
+        properties: {align: right, checked: true, text: Low}
+        type: CheckBox
+      - event_bindings: {change: check_box_medium_change}
+        layout_properties: {grid_position: 'WWQICA,GXHYIN UBABNF,PFNRZB TNFNGN,TMZRWT'}
+        name: check_box_medium
+        properties: {align: center, background: '', checked: true, foreground: 'theme:On Primary Container', text: Medium}
+        type: CheckBox
+      - layout_properties: {grid_position: 'WWQICA,YKBXNY'}
+        name: spacer_2
         properties: {height: 32}
         type: Spacer
-      - components:
-        - layout_properties: {grid_position: 'WWQICA,GXHYIN UBABNF,JKWFVP'}
-          name: spacer_1
-          properties: {height: 32}
-          type: Spacer
-        - layout_properties: {grid_position: 'WWQICA,GXHYIN UBABNF,PFNRZB PONTNU,WIFZIN'}
-          name: rich_text_2
-          properties: {align: center, content: 'Select desired imapct:', font_size: 18, spacing_above: none, spacing_below: none}
-          type: RichText
-        - event_bindings: {change: check_box_low_change}
-          layout_properties: {grid_position: 'WWQICA,GXHYIN UBABNF,PFNRZB TNFNGN,QKMIIU'}
-          name: check_box_low
-          properties: {align: right, checked: true, text: Low}
-          type: CheckBox
-        - event_bindings: {change: check_box_medium_change}
-          layout_properties: {grid_position: 'WWQICA,GXHYIN UBABNF,PFNRZB TNFNGN,TMZRWT'}
-          name: check_box_medium
-          properties: {align: center, background: '', checked: true, foreground: 'theme:On Primary Container', text: Medium}
-          type: CheckBox
-        - layout_properties: {grid_position: 'WWQICA,YKBXNY'}
-          name: spacer_2
-          properties: {height: 32}
-          type: Spacer
-        - event_bindings: {change: check_box_high_change}
-          layout_properties: {grid_position: 'WWQICA,GXHYIN UBABNF,PFNRZB TNFNGN,YEOGWM'}
-          name: check_box_high
-          properties: {checked: true, text: High}
-          type: CheckBox
-        layout_properties: {grid_position: 'XPMANF,RYHDBJ'}
-        name: outlined_card_3
-        properties: {background: 'theme:Primary Container', col_widths: '{"GXHYIN":45,"YKBXNY":15,"JKWFVP":20,"PFNRZB":40}', role: outlined-card}
-        type: ColumnPanel
-      layout_properties: {grid_position: 'ZJUDIR,PRCTOW'}
-      name: outlined_card_6
-      properties: {role: outlined-card}
+      - event_bindings: {change: check_box_high_change}
+        layout_properties: {grid_position: 'WWQICA,GXHYIN UBABNF,PFNRZB TNFNGN,YEOGWM'}
+        name: check_box_high
+        properties: {checked: true, text: High}
+        type: CheckBox
+      layout_properties: {grid_position: 'KCIDMH,NSBLED'}
+      name: outlined_card_3
+      properties: {background: 'theme:Primary Container', col_widths: '{"GXHYIN":45,"YKBXNY":15,"JKWFVP":20,"PFNRZB":40}', role: outlined-card}
       type: ColumnPanel
     - components:
       - data_bindings: []
@@ -89,9 +76,10 @@ components:
         name: data_grid_repeating_panel
         properties: {item_template: Upcoming_Events_Form.RowTemplate1, visible: true}
         type: RepeatingPanel
-      layout_properties: {grid_position: 'LRYAAB,RJJLUA'}
+      layout_properties: {grid_position: 'LRYAAB,RJJLUA', row_background: ''}
       name: data_grid_market_events
       properties:
+        auto_header: true
         background: theme:Surface
         columns:
         - {data_key: date, id: KMCFYF, title: Date}
