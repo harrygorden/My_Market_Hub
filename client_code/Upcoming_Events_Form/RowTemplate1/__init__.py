@@ -7,5 +7,4 @@ class RowTemplate1(RowTemplate1Template):
     self.init_components(**properties)
 
     # Any code you write here will run when the form opens.
-    # Ensure data is properly displayed
-    self.refresh_data_bindings()
+    # No need for additional initialization - data bindings handle displaying the data

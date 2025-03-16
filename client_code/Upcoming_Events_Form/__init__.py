@@ -69,9 +69,6 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     start_date_str = start_date.strftime('%Y-%m-%d')
     end_date_str = end_date.strftime('%Y-%m-%d')
     
-    # Show loading in the UI
-    print(f"Fetching events from {start_date_str} to {end_date_str} in {self.drop_down_time_zone.selected_value} timezone...")
-    
     # Get events from server with timezone conversion
     selected_timezone = self.drop_down_time_zone.selected_value
     events = anvil.server.call('get_market_calendar_events_with_timezone', 
@@ -79,13 +76,7 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
                               end_date_str, 
                               selected_timezone)
     
-    # Debug client-side: show how many events we received
-    print(f"Client received {len(events)} events")
-    if len(events) > 0:
-      print(f"First event: {events[0]}")
-    
     # Convert to proper format for data grid
-    # Each item must be a dictionary with keys matching column data_keys
     processed_events = []
     
     # Process each event
@@ -104,28 +95,16 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
       # Add to our list
       processed_events.append(processed_event)
     
-    # Update the UI to show what we're doing
-    print(f"Setting {len(processed_events)} events on the grid")
-    
     # Set the items directly on the repeating panel inside the DataGrid
     # This is the correct way to populate a DataGrid in Anvil
     self.data_grid_repeating_panel.items = processed_events
-    print(f"Set {len(processed_events)} items on the data grid repeating panel")
     
     # Force UI refresh
     self.refresh_data_bindings()
     
     # Ensure the DataGrid is visible
     self.data_grid_market_events.visible = True
-    
-    # Update UI to show status
-    if len(events) == 0:
-      print("No events found for the selected date range")
-    else:
-      print(f"Displayed {len(events)} events in the grid")
-    
-    return
-  
+
   def get_date_range(self):
     """Calculate start and end dates based on the selected range"""
     today = datetime.date.today()
