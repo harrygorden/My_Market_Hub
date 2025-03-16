@@ -69,6 +69,9 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     start_date_str = start_date.strftime('%Y-%m-%d')
     end_date_str = end_date.strftime('%Y-%m-%d')
     
+    # Show loading in the UI
+    print(f"Fetching events from {start_date_str} to {end_date_str} in {self.drop_down_time_zone.selected_value} timezone...")
+    
     # Get events from server with timezone conversion
     selected_timezone = self.drop_down_time_zone.selected_value
     events = anvil.server.call('get_market_calendar_events_with_timezone', 
@@ -78,9 +81,14 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     
     # Debug client-side: show how many events we received
     print(f"Client received {len(events)} events")
+    if len(events) > 0:
+      print(f"First event: {events[0]}")
     
     # Set the data source for the data grid
     self.data_grid_market_events.items = events
+    
+    # Force UI refresh
+    self.refresh_data_bindings()
   
   def get_date_range(self):
     """Calculate start and end dates based on the selected range"""
