@@ -349,6 +349,7 @@ def get_market_calendar_events_with_timezone(start_date, end_date, target_timezo
     """
     try:
         import pytz
+        import datetime
         
         # Debugging the incoming parameters
         print(f"Type of start_date: {type(start_date)}")
@@ -387,7 +388,20 @@ def get_market_calendar_events_with_timezone(start_date, end_date, target_timezo
             for row in all_rows:
                 try:
                     row_date = row['date']  # Using dict-style access
-                    if isinstance(row_date, datetime.date) and start_date <= row_date <= end_date:
+                    
+                    # Convert string date to datetime.date if needed
+                    if isinstance(row_date, str):
+                        try:
+                            row_date = datetime.datetime.strptime(row_date, '%Y-%m-%d').date()
+                        except ValueError:
+                            # If format is not YYYY-MM-DD, try alternate formats
+                            try:
+                                row_date = datetime.datetime.strptime(row_date, '%m/%d/%Y').date()
+                            except ValueError:
+                                continue  # Skip this row if we can't parse the date
+                    
+                    # Check if row_date is within the specified date range
+                    if isinstance(row_date, (datetime.date, datetime.datetime)) and start_date <= row_date <= end_date:
                         events_list.append(row)
                 except Exception as e:
                     print(f"Error accessing row date: {e} - Row: {row}")
@@ -415,7 +429,7 @@ def get_market_calendar_events_with_timezone(start_date, end_date, target_timezo
                 # Handle date
                 try:
                     date_val = event_row['date']
-                    if isinstance(date_val, datetime.date):
+                    if isinstance(date_val, (datetime.date, datetime.datetime)):
                         event['date'] = date_val.strftime('%Y-%m-%d')
                     else:
                         event['date'] = str(date_val)
