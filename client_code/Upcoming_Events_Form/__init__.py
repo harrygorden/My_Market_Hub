@@ -54,12 +54,12 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     self.next_high_impact_event = None
     self.update_high_impact_countdown()
     
-    # Create a timer component programmatically for countdown updates
-    self.timer = Timer(interval=1, repeat=True)
-    self.timer.tick += self.update_countdown_display
+    # Set up the existing timer component
+    self.timer_1.interval = 1
+    self.timer_1.tick += self.update_countdown_display
     
     # Start the timer
-    self.timer.start()
+    self.timer_1.start()
     
     # Refresh events
     self.refresh_events()
@@ -92,16 +92,25 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     
     # Call server to get the next high impact event
     try:
+      print(f"Fetching next high impact event, timezone: {selected_timezone}")
       self.next_high_impact_event = anvil.server.call('get_next_high_impact_event', selected_timezone)
       
       # If we have an event, update the countdown display immediately
       if self.next_high_impact_event:
-        self.update_countdown_display()
+        print(f"Successfully fetched event: {self.next_high_impact_event}")
+        # Ensure the rich text box exists before attempting to update it
+        if hasattr(self, 'rich_text_high_impact_event_countdown') and self.rich_text_high_impact_event_countdown:
+          self.update_countdown_display()
+        else:
+          print("Error: rich_text_high_impact_event_countdown component not found")
       else:
-        self.rich_text_high_impact_event_countdown.content = "<p>No upcoming high impact events found.</p>"
+        print("No upcoming high impact events found")
+        if hasattr(self, 'rich_text_high_impact_event_countdown') and self.rich_text_high_impact_event_countdown:
+          self.rich_text_high_impact_event_countdown.content = "<p>No upcoming high impact events found.</p>"
     except Exception as e:
-      print(f"Error fetching next high impact event: {e}")
-      self.rich_text_high_impact_event_countdown.content = "<p>Error loading next high impact event.</p>"
+      print(f"Error fetching next high impact event: {type(e).__name__} - {str(e)}")
+      if hasattr(self, 'rich_text_high_impact_event_countdown') and self.rich_text_high_impact_event_countdown:
+        self.rich_text_high_impact_event_countdown.content = f"<p>Error loading next high impact event: {type(e).__name__}</p>"
   
   def update_countdown_display(self, **event_args):
     """Update the countdown display with current time remaining"""
@@ -291,12 +300,12 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
   def form_show(self, **event_args):
     """This method is called when the form is shown on the page"""
     # Make sure the timer is running
-    if hasattr(self, 'timer') and self.timer:
-      if not self.timer.is_running:
-        self.timer.start()
+    if hasattr(self, 'timer_1') and self.timer_1:
+      if not self.timer_1.is_running:
+        self.timer_1.start()
   
   def form_hide(self, **event_args):
     """This method is called when the form is removed from the page"""
     # Stop the timer when the form is hidden
-    if hasattr(self, 'timer') and self.timer:
-      self.timer.stop()
+    if hasattr(self, 'timer_1') and self.timer_1:
+      self.timer_1.stop()
