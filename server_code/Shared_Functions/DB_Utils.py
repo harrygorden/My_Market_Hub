@@ -408,6 +408,7 @@ def get_market_calendar_events_with_timezone(start_date, end_date, target_timezo
         
         # Convert time from UTC to target timezone
         time_str = row['time']
+        converted_time = time_str  # Initialize the variable with the original value as a fallback
         try:
             # Parse the time string to create a datetime object
             # Assume times are stored in 12-hour format with AM/PM
@@ -423,15 +424,6 @@ def get_market_calendar_events_with_timezone(start_date, end_date, target_timezo
                 try:
                     # Try with 12-hour format first
                     dt = datetime.datetime.strptime(datetime_str, f"%Y-%m-%d {time_format}")
-                except ValueError:
-                    try:
-                        # If that fails, try 24-hour format
-                        dt = datetime.datetime.strptime(datetime_str, "%Y-%m-%d %H:%M")
-                    except ValueError:
-                        # If all parsing fails, use the original time string
-                        converted_time = time_str
-                        print(f"Could not parse time: {time_str}")
-                else:
                     # Make datetime timezone aware (assume UTC)
                     utc_dt = pytz.UTC.localize(dt)
                     
@@ -440,11 +432,25 @@ def get_market_calendar_events_with_timezone(start_date, end_date, target_timezo
                     
                     # Format back to time string
                     converted_time = converted_dt.strftime(time_format)
-            else:
-                converted_time = time_str
+                except ValueError:
+                    try:
+                        # If that fails, try 24-hour format
+                        dt = datetime.datetime.strptime(datetime_str, "%Y-%m-%d %H:%M")
+                        # Make datetime timezone aware (assume UTC)
+                        utc_dt = pytz.UTC.localize(dt)
+                        
+                        # Convert to target timezone
+                        converted_dt = utc_dt.astimezone(tz)
+                        
+                        # Format back to time string
+                        converted_time = converted_dt.strftime(time_format)
+                    except ValueError:
+                        # If all parsing fails, use the original time string
+                        print(f"Could not parse time: {time_str}")
+                        # converted_time already initialized
         except Exception as e:
             print(f"Error converting time {time_str}: {str(e)}")
-            converted_time = time_str
+            # converted_time already initialized with original value
         
         # Convert row to dict and format time based on timezone
         event_dict = {
