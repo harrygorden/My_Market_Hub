@@ -84,16 +84,39 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     if len(events) > 0:
       print(f"First event: {events[0]}")
     
-    # In Anvil's DataGrid architecture:
-    # 1. The DataGrid component holds the items property
-    # 2. It automatically passes these items to its internal repeating panel
-    # We need to set the items on the DataGrid itself, not on its repeating panel
+    # Clear existing items first
     self.data_grid_market_events.items = []
-    self.data_grid_market_events.items = events
     
-    # Show a message if no events were found
+    # Add a small delay before setting the items (helps with rendering in some cases)
+    import time
+    time.sleep(0.1)
+    
+    # Set the items directly on the data grid
+    # Make sure items are a list of dictionaries with matching keys to the columns
+    processed_events = []
+    for event in events:
+      # Ensure all required keys are present
+      processed_event = {
+        'date': event.get('date', ''),
+        'time': event.get('time', ''),
+        'event': event.get('event', ''),
+        'impact': event.get('impact', ''),
+        'forecast': event.get('forecast', ''),
+        'previous': event.get('previous', '')
+      }
+      processed_events.append(processed_event)
+    
+    # Set items on the data grid
+    self.data_grid_market_events.items = processed_events
+    
+    # Force refresh on the repeating panel
+    self.data_grid_market_events.repeating_panel_1.refresh_data_bindings()
+    
+    # Update UI to show status
     if len(events) == 0:
       print("No events found for the selected date range")
+    else:
+      print(f"Displaying {len(events)} events in the grid")
   
   def get_date_range(self):
     """Calculate start and end dates based on the selected range"""
