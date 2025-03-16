@@ -406,10 +406,50 @@ def get_market_calendar_events_with_timezone(start_date, end_date, target_timezo
         if len(events) == 0:
             print(f"First event in range: Date={row['date']}, Event={row['event']}")
         
+        # Convert time from UTC to target timezone
+        time_str = row['time']
+        try:
+            # Parse the time string to create a datetime object
+            # Assume times are stored in 12-hour format with AM/PM
+            time_format = "%I:%M %p"  # e.g., "08:30 AM"
+            
+            # First extract just the time part
+            if time_str and isinstance(time_str, str):
+                # Create a full datetime using both the date and time
+                date_str = row['date'].strftime("%Y-%m-%d") if hasattr(row['date'], 'strftime') else str(row['date'])
+                datetime_str = f"{date_str} {time_str}"
+                
+                # Parse the full datetime string
+                try:
+                    # Try with 12-hour format first
+                    dt = datetime.datetime.strptime(datetime_str, f"%Y-%m-%d {time_format}")
+                except ValueError:
+                    try:
+                        # If that fails, try 24-hour format
+                        dt = datetime.datetime.strptime(datetime_str, "%Y-%m-%d %H:%M")
+                    except ValueError:
+                        # If all parsing fails, use the original time string
+                        converted_time = time_str
+                        print(f"Could not parse time: {time_str}")
+                else:
+                    # Make datetime timezone aware (assume UTC)
+                    utc_dt = pytz.UTC.localize(dt)
+                    
+                    # Convert to target timezone
+                    converted_dt = utc_dt.astimezone(tz)
+                    
+                    # Format back to time string
+                    converted_time = converted_dt.strftime(time_format)
+            else:
+                converted_time = time_str
+        except Exception as e:
+            print(f"Error converting time {time_str}: {str(e)}")
+            converted_time = time_str
+        
         # Convert row to dict and format time based on timezone
         event_dict = {
             'date': row['date'].strftime("%Y-%m-%d") if hasattr(row['date'], 'strftime') else str(row['date']),
-            'time': row['time'],
+            'time': converted_time,
             'event': row['event'],
             'impact': row['impact'],
             'forecast': row['forecast'] if 'forecast' in row else '',
