@@ -341,6 +341,7 @@ def fetch_next_month_events():
     return _fetch_and_save_events(url)
 
 @anvil.server.callable
+@anvil.server.background_task
 def refresh_all_calendars():
     """
     Refresh all calendar periods (tomorrow, this week, next week, this month, next month)
