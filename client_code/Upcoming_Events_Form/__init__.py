@@ -105,12 +105,12 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
       else:
         print("No upcoming high impact events found")
         if hasattr(self, 'rich_text_high_impact_event_countdown') and self.rich_text_high_impact_event_countdown:
-          self.rich_text_high_impact_event_countdown.content = "<p>No upcoming high impact events found.</p>"
+          self.rich_text_high_impact_event_countdown.content = "No upcoming high impact events found."
     except Exception as e:
       print(f"Error fetching next high impact event: {type(e).__name__} - {str(e)}")
       if hasattr(self, 'rich_text_high_impact_event_countdown') and self.rich_text_high_impact_event_countdown:
-        self.rich_text_high_impact_event_countdown.content = f"<p>Error loading next high impact event: {type(e).__name__}</p>"
-  
+        self.rich_text_high_impact_event_countdown.content = f"Error loading next high impact event: {type(e).__name__}"
+
   def update_countdown_display(self, **event_args):
     """Update the countdown display with current time remaining"""
     if not self.next_high_impact_event:
@@ -119,7 +119,7 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
         self.update_high_impact_countdown()
         # If still no event after refresh, show message
         if not self.next_high_impact_event:
-          self.rich_text_high_impact_event_countdown.content = "<p>No upcoming high impact events found.</p>"
+          self.rich_text_high_impact_event_countdown.content = "No upcoming high impact events found."
       except Exception as e:
         print(f"Error refreshing countdown: {e}")
       return
@@ -134,8 +134,8 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
       
       if not event_date_str or not event_time_str:
         self.rich_text_high_impact_event_countdown.content = (
-          f"<p>Next high impact event: {self.next_high_impact_event.get('event', 'Unknown event')}</p>"
-          f"<p>(Missing date or time information)</p>"
+          f"Next high impact event: {self.next_high_impact_event.get('event', 'Unknown event')}\n"
+          f"(Missing date or time information)"
         )
         return
       
@@ -150,9 +150,9 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
         except ValueError:
           # If all parsing fails, show error message
           self.rich_text_high_impact_event_countdown.content = (
-            f"<p>Next high impact event: {self.next_high_impact_event.get('event', 'Unknown event')} "
-            f"on {event_date_str} at {event_time_str}</p>"
-            f"<p>(Unable to calculate countdown)</p>"
+            f"Next high impact event: {self.next_high_impact_event.get('event', 'Unknown event')} "
+            f"on {event_date_str} at {event_time_str}\n"
+            f"(Unable to calculate countdown)"
           )
           return
     
@@ -162,9 +162,9 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
       # Check if event is in the past
       if time_diff.total_seconds() <= 0:
         self.rich_text_high_impact_event_countdown.content = (
-          f"<p><strong>{self.next_high_impact_event.get('event', 'Event')}</strong> at "
-          f"{event_time_str} has already occurred.</p>"
-          f"<p>Please refresh to see the next upcoming high impact event.</p>"
+          f"{self.next_high_impact_event.get('event', 'Event')} at "
+          f"{event_time_str} has already occurred.\n"
+          f"Please refresh to see the next upcoming high impact event."
         )
         # Update the next event (this will refresh at most once a minute to avoid server spam)
         if int(time.time()) % 60 == 0:
@@ -191,14 +191,13 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
       # Update the rich text content
       event_name = self.next_high_impact_event.get('event', 'Unknown event')
       self.rich_text_high_impact_event_countdown.content = (
-        f"<p>There are <strong>{countdown_text}</strong> until</p>"
-        f"<p><strong>{event_name}</strong> at "
-        f"{event_time_str},</p>"
-        f"<p>the next upcoming high impact market event.</p>"
+        f"There are {countdown_text} until\n"
+        f"{event_name} at {event_time_str},\n"
+        f"the next upcoming high impact market event."
       )
     except Exception as e:
       print(f"Error updating countdown: {type(e).__name__} - {str(e)}")
-      self.rich_text_high_impact_event_countdown.content = f"<p>Error updating countdown: {type(e).__name__}</p>"
+      self.rich_text_high_impact_event_countdown.content = f"Error updating countdown: {type(e).__name__}"
   
   def refresh_events(self):
     """Refresh the events grid based on selected filters"""
