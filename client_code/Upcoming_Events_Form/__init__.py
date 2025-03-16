@@ -59,6 +59,18 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
   def drop_down_time_range_change(self, **event_args):
     """This method is called when the date range is changed"""
     self.refresh_events()
+    
+  def check_box_low_change(self, **event_args):
+    """This method is called when the Low impact checkbox is changed"""
+    self.refresh_events()
+    
+  def check_box_medium_change(self, **event_args):
+    """This method is called when the Medium impact checkbox is changed"""
+    self.refresh_events()
+    
+  def check_box_high_change(self, **event_args):
+    """This method is called when the High impact checkbox is changed"""
+    self.refresh_events()
   
   def refresh_events(self):
     """Refresh the events grid based on selected filters"""
@@ -79,6 +91,11 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     # Convert to proper format for data grid
     processed_events = []
     
+    # Get the current state of impact checkboxes
+    show_low = self.check_box_low.checked
+    show_medium = self.check_box_medium.checked
+    show_high = self.check_box_high.checked
+    
     # Process each event
     for event in events:
       # Create a new dictionary with the correct keys
@@ -92,8 +109,15 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
       processed_event['forecast'] = str(event.get('forecast', ''))
       processed_event['previous'] = str(event.get('previous', ''))
       
-      # Add to our list
-      processed_events.append(processed_event)
+      # Apply impact filtering
+      impact = processed_event['impact'].lower()
+      
+      # Only add events that match the selected impact levels
+      if (impact == 'low' and show_low) or \
+         (impact == 'medium' and show_medium) or \
+         (impact == 'high' and show_high):
+        # Add to our list
+        processed_events.append(processed_event)
     
     # Set the items directly on the repeating panel inside the DataGrid
     # This is the correct way to populate a DataGrid in Anvil
