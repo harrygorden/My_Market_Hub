@@ -24,6 +24,10 @@ components:
     properties: {background: 'theme:Primary', role: outlined-card}
     type: ColumnPanel
   - components:
+    - layout_properties: {grid_position: 'JJOBQI,JANIQQ'}
+      name: spacer_3
+      properties: {height: 32}
+      type: Spacer
     - event_bindings: {change: drop_down_time_range_change}
       layout_properties: {grid_position: 'JJOBQI,JOJRQP'}
       name: drop_down_time_range
@@ -38,38 +42,42 @@ components:
       properties:
         items: [UTC, Eastern, Central, Mountain, Pacific]
       type: DropDown
+    - layout_properties: {grid_position: 'JJOBQI,RSKBPY'}
+      name: spacer_4
+      properties: {height: 32}
+      type: Spacer
+    - layout_properties: {grid_position: 'KCIDMH,IHWLAE'}
+      name: spacer_1
+      properties: {height: 32}
+      type: Spacer
     - components:
-      - layout_properties: {grid_position: 'WWQICA,GXHYIN UBABNF,JKWFVP'}
-        name: spacer_1
-        properties: {height: 32}
-        type: Spacer
-      - layout_properties: {grid_position: 'WWQICA,GXHYIN UBABNF,PFNRZB PONTNU,WIFZIN'}
+      - layout_properties: {grid_position: 'PONTNU,WIFZIN'}
         name: rich_text_2
         properties: {align: center, content: 'Select desired impact:', font_size: 18, spacing_above: none, spacing_below: none}
         type: RichText
       - event_bindings: {change: check_box_low_change}
-        layout_properties: {grid_position: 'WWQICA,GXHYIN UBABNF,PFNRZB TNFNGN,QKMIIU'}
+        layout_properties: {grid_position: 'TNFNGN,QKMIIU'}
         name: check_box_low
         properties: {align: right, checked: true, text: Low}
         type: CheckBox
       - event_bindings: {change: check_box_medium_change}
-        layout_properties: {grid_position: 'WWQICA,GXHYIN UBABNF,PFNRZB TNFNGN,TMZRWT'}
+        layout_properties: {grid_position: 'TNFNGN,TMZRWT'}
         name: check_box_medium
         properties: {align: center, background: '', checked: true, foreground: 'theme:On Primary Container', text: Medium}
         type: CheckBox
-      - layout_properties: {grid_position: 'WWQICA,YKBXNY'}
-        name: spacer_2
-        properties: {height: 32}
-        type: Spacer
       - event_bindings: {change: check_box_high_change}
-        layout_properties: {grid_position: 'WWQICA,GXHYIN UBABNF,PFNRZB TNFNGN,YEOGWM'}
+        layout_properties: {grid_position: 'TNFNGN,YEOGWM'}
         name: check_box_high
         properties: {checked: true, text: High}
         type: CheckBox
       layout_properties: {grid_position: 'KCIDMH,NSBLED'}
       name: outlined_card_3
-      properties: {background: 'theme:Primary Container', col_widths: '{"GXHYIN":45,"YKBXNY":15,"JKWFVP":20,"PFNRZB":40}', role: outlined-card}
+      properties: {background: 'theme:Primary Container', col_widths: '{"GXHYIN":45}', role: outlined-card}
       type: ColumnPanel
+    - layout_properties: {grid_position: 'KCIDMH,CFFNBJ'}
+      name: spacer_2
+      properties: {height: 32}
+      type: Spacer
     - components:
       - data_bindings: []
         layout_properties: {}
@@ -96,7 +104,7 @@ components:
       type: DataGrid
     layout_properties: {full_width_row: false, grid_position: 'FBNCGY,NSPYHY'}
     name: outlined_card_2
-    properties: {background: 'theme:Primary', role: outlined-card}
+    properties: {background: 'theme:Primary', col_widths: '{"IHWLAE":15,"NSBLED":30,"CFFNBJ":15}', role: outlined-card}
     type: ColumnPanel
   layout_properties: {full_width_row: false, grid_position: 'BUKIIE,CNIBMO'}
   name: outlined_card_1
