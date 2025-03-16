@@ -3,12 +3,10 @@ from anvil import *
 import anvil.tables as tables
 import anvil.tables.query as q
 from anvil.tables import app_tables
-import anvil.google.auth, anvil.google.drive
-from anvil.google.drive import app_files
 import anvil.server
 import datetime
 import time
-
+import pytz
 
 class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
   def __init__(self, **properties):
@@ -129,6 +127,7 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     try:
       # Get current time in UTC for consistent countdown calculation
       now = datetime.datetime.utcnow()
+      now = pytz.UTC.localize(now)  # Make it timezone-aware
       
       # Parse event datetime - these times are already in UTC from the server
       event_date_str = self.next_high_impact_event.get('date', '')
@@ -145,31 +144,27 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
       
       # Convert the event_time_str to Eastern Time for display
       try:
-        # Import pytz for timezone conversion
-        import pytz
-        from datetime import datetime
-        
         # Instead of using the event_datetime which might have parsing issues,
         # directly parse the UTC time string and convert to Eastern
         
         # First, get the date part
-        event_date_obj = datetime.strptime(event_date_str, "%Y-%m-%d").date()
+        event_date_obj = datetime.datetime.strptime(event_date_str, "%Y-%m-%d").date()
         
         # Then parse the time part
         try:
           # Try 12-hour format first (8:30 AM)
-          time_obj = datetime.strptime(event_time_str, "%I:%M %p").time()
+          time_obj = datetime.datetime.strptime(event_time_str, "%I:%M %p").time()
         except ValueError:
           try:
             # Try 24-hour format (08:30)
-            time_obj = datetime.strptime(event_time_str, "%H:%M").time()
+            time_obj = datetime.datetime.strptime(event_time_str, "%H:%M").time()
           except ValueError:
             # If all parsing fails, use a default time
             print(f"Could not parse time: {event_time_str}")
             raise ValueError(f"Could not parse time: {event_time_str}")
             
         # Combine date and time into a datetime object
-        combined_dt = datetime.combine(event_date_obj, time_obj)
+        combined_dt = datetime.datetime.combine(event_date_obj, time_obj)
         
         # Make the datetime timezone-aware (UTC)
         utc_dt = pytz.UTC.localize(combined_dt)
@@ -194,7 +189,7 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
         now = pytz.UTC.localize(now)  # Make it timezone-aware
         
         # Calculate time difference using UTC times for consistency
-        time_diff = utc_dt - now
+        time_diff = utc_dt.astimezone(pytz.UTC) - now
       except Exception as e:
         print(f"Error calculating time difference: {str(e)}")
         self.rich_text_high_impact_event_countdown.content = (
