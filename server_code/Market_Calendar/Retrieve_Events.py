@@ -110,6 +110,49 @@ def _parse_event_time(event_time, current_date, site_timezone):
     # Return original if parsing fails
     return event_time
 
+def _extract_impact_level(impact_span):
+    """
+    Extract impact level from impactTitle attribute or CSS class
+    Returns one of: "High", "Medium", "Low", or "" (empty string if not found)
+    """
+    if not impact_span:
+        return ""
+    
+    # First try to get the impact level from the impactTitle attribute
+    impact_title = impact_span.get('title', '')
+    if impact_title:
+        if "high impact" in impact_title.lower():
+            return "High"
+        elif "medium impact" in impact_title.lower():
+            return "Medium"
+        elif "low impact" in impact_title.lower():
+            return "Low"
+    
+    # Check the data-impact attribute if it exists
+    data_impact = impact_span.get('data-impact', '')
+    if data_impact:
+        if data_impact.lower() == "high":
+            return "High"
+        elif data_impact.lower() == "medium":
+            return "Medium"
+        elif data_impact.lower() == "low":
+            return "Low"
+    
+    # As a fallback, try to extract from the class name
+    if 'impact' in impact_span.get('class', [])[0]:
+        impact_class = impact_span.get('class', [])[0]
+        impact_match = re.search(r'impact--(.*)', impact_class)
+        if impact_match:
+            impact = impact_match.group(1)
+            if impact.lower() == "high":
+                return "High"
+            elif impact.lower() == "medium":
+                return "Medium"
+            elif impact.lower() == "low":
+                return "Low"
+    
+    return ""
+
 def _extract_calendar_events(response_text):
     """
     Extract calendar events from HTML response
@@ -185,15 +228,11 @@ def _extract_calendar_events(response_text):
                 
                 # Get impact level
                 impact_cell = row.find('td', class_='calendar__cell calendar__impact')
-                impact = ''
+                impact = ""
                 if impact_cell:
                     impact_span = impact_cell.find('span')
-                    if impact_span and 'impact' in impact_span.get('class', [])[0]:
-                        impact_class = impact_span.get('class', [])[0]
-                        # Extract impact level (high, medium, low)
-                        impact = re.search(r'impact--(.*)', impact_class)
-                        if impact:
-                            impact = impact.group(1)
+                    if impact_span:
+                        impact = _extract_impact_level(impact_span)
                 
                 # Get forecast value
                 forecast_cell = row.find('td', class_='calendar__cell calendar__forecast')
