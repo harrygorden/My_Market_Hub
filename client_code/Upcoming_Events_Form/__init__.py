@@ -83,39 +83,62 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     print(f"Client received {len(events)} events")
     if len(events) > 0:
       print(f"First event: {events[0]}")
-    
-    # Clear existing items first
-    self.data_grid_market_events.items = []
-    
-    # Add a small delay before setting the items (helps with rendering in some cases)
-    import time
-    time.sleep(0.1)
-    
-    # Set the items directly on the data grid
-    # Make sure items are a list of dictionaries with matching keys to the columns
-    processed_events = []
-    for event in events:
-      # Ensure all required keys are present
-      processed_event = {
-        'date': event.get('date', ''),
-        'time': event.get('time', ''),
-        'event': event.get('event', ''),
-        'impact': event.get('impact', ''),
-        'forecast': event.get('forecast', ''),
-        'previous': event.get('previous', '')
-      }
-      processed_events.append(processed_event)
-    
-    # Set items on the data grid
-    self.data_grid_market_events.items = processed_events
-    
-    # No need to manually refresh the repeating panel - it's handled internally by the data grid
+      
+    # Set the items on the data grid
+    self.set_data_grid_items(events)
     
     # Update UI to show status
     if len(events) == 0:
       print("No events found for the selected date range")
     else:
       print(f"Displaying {len(events)} events in the grid")
+      
+  def set_data_grid_items(self, events):
+    """Helper method to set items on the data grid properly
+    
+    Args:
+        events (list): List of event dictionaries
+    """
+    # Based on the YAML structure, we need to set items directly on the data_grid_market_events
+    # The DataGrid will automatically forward these to its internal repeating panel
+    
+    # Convert events to the format expected by the row template
+    processed_events = []
+    for event in events:
+      # Create dictionary with keys that EXACTLY match the data bindings in RowTemplate1
+      # Important: The keys must match the data_key values in the DataGrid columns definition
+      processed_event = {
+        'date': str(event.get('date', '')),
+        'time': str(event.get('time', '')),
+        'event': str(event.get('event', '')),
+        'impact': str(event.get('impact', '')),
+        'forecast': str(event.get('forecast', '')),
+        'previous': str(event.get('previous', ''))
+      }
+      processed_events.append(processed_event)
+    
+    print(f"Setting {len(processed_events)} events on the data grid")
+    
+    # For Anvil DataGrids, set items directly on the DataGrid component
+    # This is the standard pattern and should work as long as the keys match the column data_keys
+    try:
+      # First, clear existing items
+      self.data_grid_market_events.items = []
+      
+      # A small delay can help prevent rendering issues
+      import time
+      time.sleep(0.1)
+      
+      # Set the new items
+      self.data_grid_market_events.items = processed_events
+      
+      # Debug what's now in the grid
+      if hasattr(self.data_grid_market_events, 'items'):
+        print(f"DataGrid now has {len(self.data_grid_market_events.items)} items")
+        if len(self.data_grid_market_events.items) > 0:
+          print(f"First event in grid: {self.data_grid_market_events.items[0]}")
+    except Exception as e:
+      print(f"Error setting items on DataGrid: {e}")
   
   def get_date_range(self):
     """Calculate start and end dates based on the selected range"""
