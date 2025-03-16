@@ -586,92 +586,97 @@ def fetch_next_month_events(verbose=VERBOSE_LOGGING):
 # Background task wrappers for scheduled execution
 @anvil.server.callable
 @anvil.server.background_task
-def bg_fetch_tomorrow_events(verbose=VERBOSE_LOGGING):
+def bg_fetch_tomorrow_events(verbose=False):
     """
     Background task wrapper for fetch_tomorrow_events.
     Allows scheduling the task to run at specified times.
     
     Args:
-        verbose: Whether to print detailed logs
+        verbose: Whether to print detailed logs (defaults to False for background tasks)
     
     Returns:
         dict: Statistics about processed events
     """
     print("Starting background task: fetch_tomorrow_events")
-    result = fetch_tomorrow_events(verbose=verbose)
-    print("Completed background task: fetch_tomorrow_events")
+    # Always use verbose=False to avoid excessive logging
+    result = fetch_tomorrow_events(verbose=False)
+    print(f"Completed fetch_tomorrow_events: Processed {result['total']} events ({result['new']} new, {result['existing']} existing)")
     return result
 
 @anvil.server.callable
 @anvil.server.background_task
-def bg_fetch_this_week_events(verbose=VERBOSE_LOGGING):
+def bg_fetch_this_week_events(verbose=False):
     """
     Background task wrapper for fetch_this_week_events.
     Allows scheduling the task to run at specified times.
     
     Args:
-        verbose: Whether to print detailed logs
+        verbose: Whether to print detailed logs (defaults to False for background tasks)
     
     Returns:
         dict: Statistics about processed events
     """
     print("Starting background task: fetch_this_week_events")
-    result = fetch_this_week_events(verbose=verbose)
-    print("Completed background task: fetch_this_week_events")
+    # Always use verbose=False to avoid excessive logging
+    result = fetch_this_week_events(verbose=False)
+    print(f"Completed fetch_this_week_events: Processed {result['total']} events ({result['new']} new, {result['existing']} existing)")
     return result
 
 @anvil.server.callable
 @anvil.server.background_task
-def bg_fetch_next_week_events(verbose=VERBOSE_LOGGING):
+def bg_fetch_next_week_events(verbose=False):
     """
     Background task wrapper for fetch_next_week_events.
     Allows scheduling the task to run at specified times.
     
     Args:
-        verbose: Whether to print detailed logs
+        verbose: Whether to print detailed logs (defaults to False for background tasks)
     
     Returns:
         dict: Statistics about processed events
     """
     print("Starting background task: fetch_next_week_events")
-    result = fetch_next_week_events(verbose=verbose)
-    print("Completed background task: fetch_next_week_events")
+    # Always use verbose=False to avoid excessive logging
+    result = fetch_next_week_events(verbose=False)
+    print(f"Completed fetch_next_week_events: Processed {result['total']} events ({result['new']} new, {result['existing']} existing)")
     return result
 
 @anvil.server.callable
 @anvil.server.background_task
-def bg_fetch_this_month_events(verbose=VERBOSE_LOGGING):
+def bg_fetch_this_month_events(verbose=False):
     """
     Background task wrapper for fetch_this_month_events.
     Allows scheduling the task to run at specified times.
     
     Args:
-        verbose: Whether to print detailed logs
+        verbose: Whether to print detailed logs (defaults to False for background tasks)
     
     Returns:
         dict: Statistics about processed events
     """
     print("Starting background task: fetch_this_month_events")
-    result = fetch_this_month_events(verbose=verbose)
-    print("Completed background task: fetch_this_month_events")
+    # Always use verbose=False to avoid excessive logging
+    result = fetch_this_month_events(verbose=False)
+    print(f"Completed fetch_this_month_events: Processed {result['total']} events ({result['new']} new, {result['existing']} existing)")
     return result
 
 @anvil.server.callable
 @anvil.server.background_task
-def bg_fetch_next_month_events(verbose=VERBOSE_LOGGING):
+def bg_fetch_next_month_events(verbose=False):
     """
     Background task wrapper for fetch_next_month_events.
     Allows scheduling the task to run at specified times.
     
     Args:
-        verbose: Whether to print detailed logs
+        verbose: Whether to print detailed logs (defaults to False for background tasks)
     
     Returns:
         dict: Statistics about processed events
     """
     print("Starting background task: fetch_next_month_events")
-    result = fetch_next_month_events(verbose=verbose)
-    print("Completed background task: fetch_next_month_events")
+    # Always use verbose=False to avoid excessive logging
+    result = fetch_next_month_events(verbose=False)
+    print(f"Completed fetch_next_month_events: Processed {result['total']} events ({result['new']} new, {result['existing']} existing)")
     return result
 
 @anvil.server.callable
@@ -682,7 +687,7 @@ def refresh_all_calendars(verbose=False):
     with condensed logging output that only shows the final statistics.
     
     Args:
-        verbose: Whether to print detailed logs
+        verbose: Whether to print detailed logs (defaults to False for background tasks)
     
     Returns:
         dict: Combined statistics for all time ranges
@@ -695,6 +700,8 @@ def refresh_all_calendars(verbose=False):
         "details": {}  # Store individual statistics for each period
     }
     
+    print("Starting background task: refresh_all_calendars")
+    
     # Fetch and process events for each time period
     time_ranges = {
         "tomorrow": fetch_tomorrow_events,
@@ -705,13 +712,10 @@ def refresh_all_calendars(verbose=False):
     }
     
     for period_name, fetch_function in time_ranges.items():
-        if verbose:
-            print(f"\nProcessing {period_name} calendar...")
-        else:
-            print(f"Processing {period_name}...")
+        print(f"Processing {period_name}...")
         
-        # Pass the verbose flag to the fetch function
-        stats = fetch_function(verbose=verbose)
+        # Always use verbose=False to avoid excessive logging
+        stats = fetch_function(verbose=False)
         
         # Add to combined totals
         combined_stats["total"] += stats["total"]
@@ -720,13 +724,16 @@ def refresh_all_calendars(verbose=False):
         
         # Store individual statistics
         combined_stats["details"][period_name] = stats
+        
+        # Print condensed summary for this period
+        print(f"  {period_name}: {stats['total']} events ({stats['new']} new, {stats['existing']} existing)")
     
-    # Always print combined statistics (even in non-verbose mode)
-    print("\n=== COMBINED EVENT PROCESSING SUMMARY ===")
-    print(f"Total Scraped Events: {combined_stats['total']}")
-    print(f"Skipped (existing) events: {combined_stats['existing']}")
-    print(f"Newly added events: {combined_stats['new']}")
-    print("=======================================\n")
+    # Always print combined statistics in a condensed format
+    print("\n=== CALENDAR REFRESH SUMMARY ===")
+    print(f"Total Events: {combined_stats['total']}")
+    print(f"Existing: {combined_stats['existing']}")
+    print(f"New: {combined_stats['new']}")
+    print("===============================")
     
     return combined_stats
 
