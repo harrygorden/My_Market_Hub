@@ -23,38 +23,24 @@ components:
       - data_bindings: []
         layout_properties: {}
         name: data_grid_repeating_panel
-        properties: 
-          item_template: Upcoming_Events_Form.RowTemplate1
-          visible: true
+        properties: {item_template: Upcoming_Events_Form.RowTemplate1, visible: true}
         type: RepeatingPanel
       layout_properties: {grid_position: 'LRYAAB,RJJLUA'}
       name: data_grid_market_events
       properties:
         background: theme:Surface
-        foreground: theme:On Surface
         columns:
-        - data_key: date
-          id: KMCFYF
-          title: Date
-        - data_key: time
-          id: FCPXRI
-          title: Time
-        - data_key: event
-          id: YOZLSI
-          title: Event
-        - data_key: impact
-          id: EMAMUM
-          title: Impact
-        - data_key: forecast
-          id: ISSGTE
-          title: Forecast
-        - data_key: previous
-          id: OMMDHK
-          title: Previous
-        role: outlined-card
-        visible: true
-        show_page_controls: true
+        - {data_key: date, id: KMCFYF, title: Date}
+        - {data_key: time, id: FCPXRI, title: Time}
+        - {data_key: event, id: YOZLSI, title: Event}
+        - {data_key: impact, id: EMAMUM, title: Impact}
+        - {data_key: forecast, id: ISSGTE, title: Forecast}
+        - {data_key: previous, id: OMMDHK, title: Previous}
+        foreground: theme:On Surface
+        role: tonal-data-grid
         rows_per_page: 10
+        show_page_controls: true
+        visible: true
       type: DataGrid
     layout_properties: {full_width_row: false, grid_position: 'FBNCGY,NSPYHY'}
     name: outlined_card_2
