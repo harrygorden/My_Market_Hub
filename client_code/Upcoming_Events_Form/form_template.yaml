@@ -28,16 +28,31 @@ components:
       layout_properties: {grid_position: 'LRYAAB,RJJLUA'}
       name: data_grid_market_events
       properties:
-        background: theme:Primary Container
+        background: theme:Surface
+        foreground: theme:On Surface
         columns:
-        - {data_key: date, id: KMCFYF, title: Date}
-        - {data_key: time, id: FCPXRI, title: Time}
-        - {data_key: event, id: YOZLSI, title: Event}
-        - {data_key: impact, id: EMAMUM, title: Impact}
-        - {data_key: forecast, id: ISSGTE, title: Forecast}
-        - {data_key: previous, id: OMMDHK, title: Previous}
-        role: null
+        - data_key: date
+          id: KMCFYF
+          title: Date
+        - data_key: time
+          id: FCPXRI
+          title: Time
+        - data_key: event
+          id: YOZLSI
+          title: Event
+        - data_key: impact
+          id: EMAMUM
+          title: Impact
+        - data_key: forecast
+          id: ISSGTE
+          title: Forecast
+        - data_key: previous
+          id: OMMDHK
+          title: Previous
+        role: outlined-card
         visible: true
+        show_page_controls: true
+        rows_per_page: 10
       type: DataGrid
     layout_properties: {full_width_row: false, grid_position: 'FBNCGY,NSPYHY'}
     name: outlined_card_2
