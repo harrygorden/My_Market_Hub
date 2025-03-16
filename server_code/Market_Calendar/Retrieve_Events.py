@@ -10,6 +10,7 @@ from ..Shared_Functions import DB_Utils
 # Constants
 FOREXFACTORY_BASE_URL = "https://www.forexfactory.com/calendar"
 USD_CURRENCY = "USD"
+DEFAULT_TIMEZONE = "America/New_York"  # Default to Eastern time if we can't detect
 
 # Helper Functions
 def _get_response_text(url):
@@ -29,6 +30,42 @@ def _get_response_text(url):
     except AttributeError:
         # If it's already a string, use it as is
         return response
+
+def _detect_site_timezone(response_text):
+    """Extract the timezone information from the site response"""
+    # Look for timezone information in the response
+    timezone_pattern = r'timezone:\s*[\'"]([^\'"]+)[\'"]'
+    timezone_match = re.search(timezone_pattern, response_text)
+    
+    if timezone_match:
+        detected_timezone = timezone_match.group(1)
+        print(f"Extracted site timezone: {detected_timezone}")
+        try:
+            # Verify it's a valid timezone
+            pytz.timezone(detected_timezone)
+            return detected_timezone
+        except pytz.exceptions.UnknownTimeZoneError:
+            print(f"Unknown timezone: {detected_timezone}, falling back to default")
+    else:
+        print("No timezone information found in the response")
+    
+    # If no timezone found or it's invalid, use default
+    return DEFAULT_TIMEZONE
+
+def _convert_to_utc(dt, source_timezone):
+    """Convert a datetime from source timezone to UTC"""
+    if not dt:
+        return dt
+    
+    # Make the datetime timezone-aware in the source timezone
+    source_tz = pytz.timezone(source_timezone)
+    aware_dt = source_tz.localize(dt)
+    
+    # Convert to UTC
+    utc_dt = aware_dt.astimezone(pytz.UTC)
+    print(f"Converted {dt} ({source_timezone}) to UTC: {utc_dt}")
+    
+    return utc_dt
 
 def _extract_calendar_events(response_text):
     """
@@ -56,6 +93,9 @@ def _extract_calendar_events(response_text):
     """
     events = []
     
+    # Detect the site's timezone
+    source_timezone = _detect_site_timezone(response_text)
+    
     try:
         print("\nExtracting calendar events from JavaScript data")
         
@@ -65,7 +105,7 @@ def _extract_calendar_events(response_text):
         
         if not calendar_data_match:
             print("Could not find calendar data in the response")
-            return _extract_events_with_regex(response_text)
+            return _extract_events_with_regex(response_text, source_timezone)
         
         print("Found calendar data in JavaScript")
         
@@ -75,7 +115,7 @@ def _extract_calendar_events(response_text):
         
         if not days_match:
             print("Could not find days array in calendar data")
-            return _extract_events_with_regex(response_text)
+            return _extract_events_with_regex(response_text, source_timezone)
         
         print("Found days array in calendar data")
         
@@ -111,7 +151,7 @@ def _extract_calendar_events(response_text):
         except json.JSONDecodeError as e:
             print(f"Error parsing days JSON: {e}")
             # Fall back to regex approach
-            return _extract_events_with_regex(response_text)
+            return _extract_events_with_regex(response_text, source_timezone)
         
         # Process each day's events
         for day_data in days_data:
@@ -176,16 +216,20 @@ def _extract_calendar_events(response_text):
                         except Exception as e:
                             print(f"Error parsing time '{time_label}' for event '{event_name}': {e}")
                     
+                    # Convert the event datetime to UTC
+                    utc_event_datetime = _convert_to_utc(event_datetime, source_timezone)
+                    
                     # Build the event object - Use 'event' as the key instead of 'name' for compatibility
                     event = {
-                        'date': event_datetime.strftime('%Y-%m-%d'),
-                        'time': event_datetime.strftime('%H:%M'),
+                        'date': utc_event_datetime.strftime('%Y-%m-%d'),
+                        'time': utc_event_datetime.strftime('%H:%M'),
                         'currency': currency,
                         'event': event_name,  # Changed from 'name' to 'event' for compatibility
                         'impact': impact,
                         'forecast': forecast,
                         'previous': previous,
-                        'source': 'ForexFactory'
+                        'source': 'ForexFactory',
+                        'timezone': 'UTC'  # Store timezone information
                     }
                     
                     print(f"Extracted event: {event_name} at {time_label} with impact {impact}")
@@ -198,12 +242,12 @@ def _extract_calendar_events(response_text):
     except Exception as e:
         print(f"Exception in calendar extraction: {e}")
         # Fall back to regex approach
-        return _extract_events_with_regex(response_text)
+        return _extract_events_with_regex(response_text, source_timezone)
     
     print(f"Extracted {len(events)} total events")
     return events
 
-def _extract_events_with_regex(response_text):
+def _extract_events_with_regex(response_text, source_timezone=DEFAULT_TIMEZONE):
     """Fallback method to extract events using regex if JSON parsing fails"""
     print("Using regex fallback method to extract events")
     events = []
@@ -247,27 +291,43 @@ def _extract_events_with_regex(response_text):
             # Map impact level
             impact = _map_impact_level(impact_class, "")
             
-            # Try to parse time label
-            event_time = time_label
+            # Try to parse time label and create full datetime
+            event_datetime = date_obj
             if re.match(r'(\d+):(\d+)(am|pm)', time_label.lower()):
                 try:
                     # Parse 12-hour format
-                    time_obj = datetime.datetime.strptime(time_label, '%I:%M%p')
-                    event_time = time_obj.strftime('%H:%M')
+                    time_parts = re.match(r'(\d+):(\d+)(am|pm)', time_label.lower())
+                    if time_parts:
+                        hour = int(time_parts.group(1))
+                        minute = int(time_parts.group(2))
+                        am_pm = time_parts.group(3)
+                        
+                        # Convert to 24-hour format
+                        if am_pm == 'pm' and hour < 12:
+                            hour += 12
+                        elif am_pm == 'am' and hour == 12:
+                            hour = 0
+                        
+                        # Update the event datetime
+                        event_datetime = event_datetime.replace(hour=hour, minute=minute)
                 except:
-                    # Keep original if parsing fails
                     pass
+            
+            # Convert to UTC
+            utc_event_datetime = _convert_to_utc(event_datetime, source_timezone)
+            event_time = utc_event_datetime.strftime('%H:%M')
             
             # Create the event - Use 'event' as the key instead of 'name' for compatibility
             event = {
-                'date': date_obj.strftime('%Y-%m-%d'),
+                'date': utc_event_datetime.strftime('%Y-%m-%d'),
                 'time': event_time,
                 'currency': currency,
                 'event': name,  # Changed from 'name' to 'event' for compatibility 
                 'impact': impact,
                 'forecast': forecast,
                 'previous': previous,
-                'source': 'ForexFactory'
+                'source': 'ForexFactory',
+                'timezone': 'UTC'  # Store timezone information
             }
             
             print(f"Extracted event via regex: {name} at {time_label} with impact {impact}")
@@ -322,8 +382,6 @@ def _fetch_and_save_events(url):
     print()
     
     return stats
-
-# Server callable functions for different time ranges
 
 @anvil.server.callable
 def fetch_tomorrow_events():
@@ -437,7 +495,6 @@ def refresh_all_calendars():
     
     return combined_stats
 
-# Legacy functions for backward compatibility
 @anvil.server.callable
 def retrieve_market_calendar_events():
     """Legacy function - redirects to refresh_all_calendars"""
