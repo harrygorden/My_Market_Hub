@@ -153,7 +153,7 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
           # If all parsing fails, show error message
           self.rich_text_high_impact_event_countdown.content = (
             f"Next High Impact Event\n\n"
-            f"{event_name} on {event_date_str} at {event_time_str}\n"
+            f"{event_name}\n{event_date_str} at {event_time_str}\n"
             f"(Unable to calculate countdown)"
           )
           return
@@ -214,11 +214,14 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
           # For dates further away, use the month and day
           friendly_day = event_date.strftime("%B %d")
       
+      # Get timezone display name
+      timezone_name = self.drop_down_time_zone.selected_value if hasattr(self, 'drop_down_time_zone') and self.drop_down_time_zone.selected_value else "UTC"
+      
       # Update the rich text content with the new format
       self.rich_text_high_impact_event_countdown.content = (
         f"Next High Impact Event\n\n"
         f"{countdown_text}\n\n"
-        f"{event_name} on {friendly_day} at {event_time_str}"
+        f"{event_name}\n{friendly_day} at {event_time_str} ({timezone_name})"
       )
     except Exception as e:
       print(f"Error updating countdown: {type(e).__name__} - {str(e)}")
