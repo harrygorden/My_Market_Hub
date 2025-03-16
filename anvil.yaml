@@ -6,7 +6,7 @@ db_schema:
     server: full
     title: Key_Levels_ES
   marketcalendar:
-    client: none
+    client: search
     columns:
     - admin_ui: {width: 200}
       name: ID
