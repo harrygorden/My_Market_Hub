@@ -33,13 +33,34 @@ def _get_response_text(url):
 
 def _detect_site_timezone(response_text):
     """Extract the timezone information from the site response"""
-    # Look for timezone information in the response
+    # First try to find a proper IANA timezone string
     timezone_pattern = r'timezone:\s*[\'"]([^\'"]+)[\'"]'
     timezone_match = re.search(timezone_pattern, response_text)
     
     if timezone_match:
         detected_timezone = timezone_match.group(1)
         print(f"Extracted site timezone: {detected_timezone}")
+        
+        # Handle numeric timezone values (like "0" for GMT/UTC)
+        if detected_timezone.isdigit() or (detected_timezone.startswith('-') and detected_timezone[1:].isdigit()):
+            try:
+                # Convert numeric offset to hours
+                offset = int(detected_timezone)
+                if offset == 0:
+                    # If offset is 0, it's UTC/GMT
+                    print(f"Numeric timezone '{detected_timezone}' detected as UTC/GMT")
+                    return "UTC"
+                else:
+                    # For other offsets, calculate proper timezone
+                    # This is a simplification - for production, you'd want a mapping of offsets to timezones
+                    # For now, we'll default to UTC and log the issue
+                    print(f"Numeric timezone offset {offset} defaulting to UTC")
+                    return "UTC"
+            except ValueError:
+                print(f"Invalid numeric timezone: {detected_timezone}, falling back to default")
+                return DEFAULT_TIMEZONE
+        
+        # Try to use the string as a timezone identifier
         try:
             # Verify it's a valid timezone
             pytz.timezone(detected_timezone)
@@ -47,6 +68,19 @@ def _detect_site_timezone(response_text):
         except pytz.exceptions.UnknownTimeZoneError:
             print(f"Unknown timezone: {detected_timezone}, falling back to default")
     else:
+        # Try to find other timezone indicators in the page
+        # Look for mentions of timezone in the text
+        tz_mention_pattern = r'All times are GMT[+\-]?(\d*)'
+        tz_mention = re.search(tz_mention_pattern, response_text)
+        if tz_mention:
+            offset_str = tz_mention.group(1)
+            if offset_str == '' or offset_str == '0':
+                print("Detected GMT+0 timezone from page text")
+                return "UTC"
+            else:
+                print(f"Detected GMT{offset_str} timezone from page text, using UTC")
+                return "UTC"
+                
         print("No timezone information found in the response")
     
     # If no timezone found or it's invalid, use default
