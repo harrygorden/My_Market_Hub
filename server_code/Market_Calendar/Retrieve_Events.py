@@ -185,7 +185,7 @@ def _extract_calendar_events(response_text):
                     current_time = row_time
                     print(f"Found new time marker: '{current_time}'")
                 
-                # Log the time we're using for this event (either from this row or carried forward)
+                # Log the time we're using for this event (from this row or carried forward)
                 print(f"Using time for this event: '{current_time}'")
                 
                 # Get the event name
@@ -236,6 +236,9 @@ def _extract_calendar_events(response_text):
                     'previous': previous,
                     'timezone': site_timezone  # Store site's timezone for reference
                 }
+                
+                # Print the event data for debugging
+                print(f"Creating event with time: '{current_time}' for {event_name}")
                 
                 events.append(event_data)
                 
