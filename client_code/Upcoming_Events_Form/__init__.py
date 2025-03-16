@@ -110,8 +110,29 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     # Update the UI to show what we're doing
     print(f"Setting {len(processed_events)} events on the grid")
     
-    # Use native Anvil approach - set items directly on the data grid
+    # First, try to directly access the repeating panel within the DataGrid
+    # In Anvil, the first component of a DataGrid is usually its RepeatingPanel
+    try:
+      # Get the components inside the DataGrid
+      grid_components = self.data_grid_market_events.get_components()
+      
+      # If we found components, try to set items on the first one (the repeating panel)
+      if grid_components and len(grid_components) > 0:
+        repeating_panel = grid_components[0]
+        repeating_panel.items = processed_events
+        print(f"Directly set {len(processed_events)} items on the repeating panel")
+    except Exception as e:
+      print(f"Error accessing repeating panel: {e}")
+    
+    # Always set items on the DataGrid itself as well - this is the standard approach
     self.data_grid_market_events.items = processed_events
+    
+    # Also set items on our fallback repeating panel
+    try:
+      self.events_table_fallback.items = processed_events
+      print(f"Set {len(processed_events)} items on fallback display")
+    except Exception as e:
+      print(f"Error setting fallback items: {e}")
     
     # Force UI refresh - sometimes necessary in Anvil for DataGrids
     self.refresh_data_bindings()
