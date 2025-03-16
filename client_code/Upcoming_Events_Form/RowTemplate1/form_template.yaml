@@ -3,37 +3,37 @@ components:
   - {code: 'self.item["date"]', property: text}
   layout_properties: {column: KMCFYF}
   name: date_label
-  properties: {bold: true, text: ''}
+  properties: {bold: true, text: '', visible: true, foreground: 'theme:On Background'}
   type: Label
 - data_bindings:
   - {code: 'self.item["time"]', property: text}
   layout_properties: {column: FCPXRI}
   name: time_label
-  properties: {text: ''}
+  properties: {text: '', visible: true, foreground: 'theme:On Background'}
   type: Label
 - data_bindings:
   - {code: 'self.item["event"]', property: text}
   layout_properties: {column: YOZLSI}
   name: event_label
-  properties: {text: ''}
+  properties: {text: '', visible: true, foreground: 'theme:On Background'}
   type: Label
 - data_bindings:
   - {code: 'self.item["impact"]', property: text}
   layout_properties: {column: EMAMUM}
   name: impact_label
-  properties: {text: ''}
+  properties: {text: '', visible: true, foreground: 'theme:On Background'}
   type: Label
 - data_bindings:
   - {code: 'self.item["forecast"]', property: text}
   layout_properties: {column: ISSGTE}
   name: forecast_label
-  properties: {text: ''}
+  properties: {text: '', visible: true, foreground: 'theme:On Background'}
   type: Label
 - data_bindings:
   - {code: 'self.item["previous"]', property: text}
   layout_properties: {column: OMMDHK}
   name: previous_label
-  properties: {text: ''}
+  properties: {text: '', visible: true, foreground: 'theme:On Background'}
   type: Label
 container: {type: DataRowPanel}
 is_package: true

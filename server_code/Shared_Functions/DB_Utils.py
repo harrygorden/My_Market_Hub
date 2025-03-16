@@ -337,160 +337,94 @@ def get_market_calendar_events_by_impact(impact_level, start_date=None, end_date
 @anvil.server.callable
 def get_market_calendar_events_with_timezone(start_date, end_date, target_timezone="UTC"):
     """
-    Retrieve market calendar events for a specific date range and convert to specified timezone
+    Get market calendar events for the specified date range and timezone
     
     Args:
-        start_date (datetime.date): Start date (inclusive)
-        end_date (datetime.date): End date (inclusive)
-        target_timezone (str): Target timezone (UTC, Eastern, Central, Mountain, Pacific)
+        start_date (str): Start date in format 'YYYY-MM-DD'
+        end_date (str): End date in format 'YYYY-MM-DD'
+        target_timezone (str, optional): Target timezone. Defaults to "UTC".
         
     Returns:
-        list: List of event dictionaries with times converted to target timezone
+        list: List of event dictionaries with date, time, event, impact, forecast, previous
     """
-    try:
-        import pytz
-        import datetime
+    import datetime
+    import pytz
+    from anvil.tables import app_tables
+    
+    print(f"Type of start_date: {type(start_date)}")
+    print(f"Value of start_date: {start_date}")
+    print(f"Type of end_date: {type(end_date)}")
+    print(f"Value of end_date: {end_date}")
+    print(f"Target timezone: {target_timezone}")
+    
+    # Convert string dates to datetime objects
+    if isinstance(start_date, str):
+        start_date = datetime.datetime.strptime(start_date, "%Y-%m-%d").date()
+    if isinstance(end_date, str):
+        end_date = datetime.datetime.strptime(end_date, "%Y-%m-%d").date()
         
-        # Debugging the incoming parameters
-        print(f"Type of start_date: {type(start_date)}")
-        print(f"Value of start_date: {start_date}")
-        print(f"Type of end_date: {type(end_date)}")
-        print(f"Value of end_date: {end_date}")
-        print(f"Target timezone: {target_timezone}")
+    # Get timezone object
+    if target_timezone == "Eastern":
+        tz = pytz.timezone("America/New_York")
+    elif target_timezone == "Central":
+        tz = pytz.timezone("America/Chicago")
+    elif target_timezone == "Mountain":
+        tz = pytz.timezone("America/Denver")
+    elif target_timezone == "Pacific":
+        tz = pytz.timezone("America/Los_Angeles")
+    else:
+        tz = pytz.timezone("UTC")
+    
+    # Get all rows from marketcalendar table
+    rows = app_tables.marketcalendar.search()
+    
+    # Format for debug
+    print(f"Retrieved {len(rows)} total rows from marketcalendar")
+
+    # Filter rows by date range - make sure everything is a date object for comparison
+    filtered_rows = []
+    for row in rows:
+        row_date = row['date']
+        if isinstance(row_date, str):
+            # Convert string to date
+            try:
+                row_date = datetime.datetime.strptime(row_date, "%Y-%m-%d").date()
+            except:
+                # Skip if conversion fails
+                continue
         
-        # Ensure dates are datetime.date objects
-        # If they're strings (ISO format), convert them
-        if isinstance(start_date, str):
-            start_date = datetime.datetime.strptime(start_date, '%Y-%m-%d').date()
+        # Check if the date is within the range
+        if start_date <= row_date <= end_date:
+            filtered_rows.append(row)
+    
+    print(f"Filtered to {len(filtered_rows)} rows in date range {start_date} to {end_date}")
+    
+    # Format events for return
+    events = []
+    for row in filtered_rows:
+        # Some debug for the first event
+        if len(events) == 0:
+            print(f"First event in range: Date={row['date']}, Event={row['event']}")
         
-        if isinstance(end_date, str):
-            end_date = datetime.datetime.strptime(end_date, '%Y-%m-%d').date()
-        
-        # Define timezone mappings
-        timezone_map = {
-            "Eastern": "US/Eastern",
-            "Central": "US/Central",
-            "Mountain": "US/Mountain",
-            "Pacific": "US/Pacific",
-            "UTC": "UTC"
+        # Convert row to dict and format time based on timezone
+        event_dict = {
+            'date': row['date'].strftime("%Y-%m-%d") if hasattr(row['date'], 'strftime') else str(row['date']),
+            'time': row['time'],
+            'event': row['event'],
+            'impact': row['impact'],
+            'forecast': row['forecast'] if 'forecast' in row else '',
+            'previous': row['previous'] if 'previous' in row else ''
         }
         
-        # Get the pytz timezone object
-        tz = pytz.timezone(timezone_map[target_timezone])
+        # Add to events list
+        events.append(event_dict)
+    
+    # Debug the first processed event
+    if events:
+        print(f"First processed event: {events[0]}")
         
-        # Get all rows and filter manually - this is the most reliable approach
-        try:
-            all_rows = list(app_tables.marketcalendar.search())
-            print(f"Retrieved {len(all_rows)} total rows from marketcalendar")
-            
-            # Filter for dates in the range - using dictionary access style with brackets
-            events_list = []
-            for row in all_rows:
-                try:
-                    row_date = row['date']  # Using dict-style access
-                    
-                    # Convert string date to datetime.date if needed
-                    if isinstance(row_date, str):
-                        try:
-                            row_date = datetime.datetime.strptime(row_date, '%Y-%m-%d').date()
-                        except ValueError:
-                            # If format is not YYYY-MM-DD, try alternate formats
-                            try:
-                                row_date = datetime.datetime.strptime(row_date, '%m/%d/%Y').date()
-                            except ValueError:
-                                continue  # Skip this row if we can't parse the date
-                    
-                    # Check if row_date is within the specified date range
-                    if isinstance(row_date, (datetime.date, datetime.datetime)) and start_date <= row_date <= end_date:
-                        events_list.append(row)
-                except Exception as e:
-                    print(f"Error accessing row date: {e} - Row: {row}")
-            
-            print(f"Filtered to {len(events_list)} rows in date range {start_date} to {end_date}")
-            
-            # Print the first event to understand structure
-            if events_list:
-                row = events_list[0]
-                print(f"First event in range: Date={row['date']}, Event={row['event']}")
-                
-        except Exception as e:
-            print(f"Error retrieving/filtering events: {e}")
-            import traceback
-            print(traceback.format_exc())
-            events_list = []
-        
-        # Convert to list of dictionaries with timezone conversion
-        event_list = []
-        for event_row in events_list:
-            try:
-                # Convert Anvil row to dictionary safely
-                event = {}
-                
-                # Handle date
-                try:
-                    date_val = event_row['date']
-                    if isinstance(date_val, (datetime.date, datetime.datetime)):
-                        event['date'] = date_val.strftime('%Y-%m-%d')
-                    else:
-                        event['date'] = str(date_val)
-                except:
-                    event['date'] = ''
-                
-                # Handle other fields safely
-                for field in ['time', 'event', 'impact', 'forecast', 'previous']:
-                    try:
-                        event[field] = str(event_row[field]) if event_row[field] is not None else ''
-                    except:
-                        event[field] = ''
-                
-                # Convert time if target timezone is not UTC
-                if target_timezone != "UTC" and event['time'] and event['date']:
-                    try:
-                        # Parse the date
-                        event_date = datetime.datetime.strptime(event['date'], '%Y-%m-%d').date()
-                        
-                        # Handle various time formats
-                        time_str = event['time'].lower().replace('am', ' am').replace('pm', ' pm')
-                        
-                        # Try to parse the time string
-                        try:
-                            event_time = datetime.datetime.strptime(time_str, '%I:%M %p').time()
-                        except ValueError:
-                            try:
-                                event_time = datetime.datetime.strptime(time_str, '%H:%M').time()
-                            except ValueError:
-                                # If we can't parse the time, skip conversion
-                                event_list.append(event)
-                                continue
-                        
-                        # Create a datetime object in UTC
-                        utc_dt = datetime.datetime.combine(event_date, event_time, tzinfo=pytz.UTC)
-                        
-                        # Convert to target timezone
-                        local_dt = utc_dt.astimezone(tz)
-                        
-                        # Format the time for display
-                        event['time'] = local_dt.strftime('%I:%M %p')
-                        
-                    except Exception as e:
-                        print(f"Error converting time: {e}")
-                
-                event_list.append(event)
-                
-            except Exception as e:
-                print(f"Error processing event row: {e}")
-        
-        # Debug the final output list
-        print(f"Returning {len(event_list)} events")
-        if event_list:
-            print(f"First processed event: {event_list[0]}")
-        return event_list
-        
-    except Exception as e:
-        print(f"Error retrieving market calendar events with timezone conversion: {e}")
-        import traceback
-        print(traceback.format_exc())
-        return []
+    print(f"Returning {len(events)} events")
+    return events
 
 @anvil.server.callable
 def debug_market_calendar_table():
