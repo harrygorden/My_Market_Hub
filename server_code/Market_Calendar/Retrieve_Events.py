@@ -11,6 +11,7 @@ from ..Shared_Functions import DB_Utils
 FOREXFACTORY_BASE_URL = "https://www.forexfactory.com/calendar"
 USD_CURRENCY = "USD"
 DEFAULT_TIMEZONE = "America/New_York"  # Default to Eastern time if we can't detect
+VERBOSE_LOGGING = True  # Set to False to reduce logging verbosity
 
 # Helper Functions
 def _get_response_text(url):
@@ -383,12 +384,13 @@ def _map_impact_level(impact_class, impact_title):
     else:
         return ''
 
-def _fetch_and_save_events(url):
+def _fetch_and_save_events(url, verbose=VERBOSE_LOGGING):
     """
     Fetch events from a given ForexFactory URL and save them to the database
     
     Args:
         url: Complete ForexFactory URL to fetch events from
+        verbose: Whether to print detailed logs
         
     Returns:
         dict: Statistics about processed events
@@ -406,19 +408,20 @@ def _fetch_and_save_events(url):
         return {"total": 0, "existing": 0, "new": 0}
     
     # Save events to the database
-    stats = DB_Utils.save_multiple_market_calendar_events(events)
+    stats = DB_Utils.save_multiple_market_calendar_events(events, verbose)
     
     # Format the statistics output
-    print("\nEvent Processing Summary:")
-    print(f"Total Scraped Events: {stats['total']}")
-    print(f"Skipped (existing) events: {stats['existing']}")
-    print(f"Newly added events: {stats['new']}")
-    print()
+    if verbose:
+        print("\nEvent Processing Summary:")
+        print(f"Total Scraped Events: {stats['total']}")
+        print(f"Skipped (existing) events: {stats['existing']}")
+        print(f"Newly added events: {stats['new']}")
+        print()
     
     return stats
 
 @anvil.server.callable
-def fetch_tomorrow_events():
+def fetch_tomorrow_events(verbose=VERBOSE_LOGGING):
     """
     Fetch and save market calendar events for tomorrow from ForexFactory
     
@@ -428,10 +431,10 @@ def fetch_tomorrow_events():
     url = f"{FOREXFACTORY_BASE_URL}?day=tomorrow"
     print(f"Fetching tomorrow's events from: {url}")
     
-    return _fetch_and_save_events(url)
+    return _fetch_and_save_events(url, verbose)
 
 @anvil.server.callable
-def fetch_this_week_events():
+def fetch_this_week_events(verbose=VERBOSE_LOGGING):
     """
     Fetch and save market calendar events for the current week from ForexFactory
     
@@ -441,10 +444,10 @@ def fetch_this_week_events():
     url = f"{FOREXFACTORY_BASE_URL}?week=this"
     print(f"Fetching this week's events from: {url}")
     
-    return _fetch_and_save_events(url)
+    return _fetch_and_save_events(url, verbose)
 
 @anvil.server.callable
-def fetch_next_week_events():
+def fetch_next_week_events(verbose=VERBOSE_LOGGING):
     """
     Fetch and save market calendar events for next week from ForexFactory
     
@@ -454,10 +457,10 @@ def fetch_next_week_events():
     url = f"{FOREXFACTORY_BASE_URL}?week=next"
     print(f"Fetching next week's events from: {url}")
     
-    return _fetch_and_save_events(url)
+    return _fetch_and_save_events(url, verbose)
 
 @anvil.server.callable
-def fetch_this_month_events():
+def fetch_this_month_events(verbose=VERBOSE_LOGGING):
     """
     Fetch and save market calendar events for the current month from ForexFactory
     
@@ -467,10 +470,10 @@ def fetch_this_month_events():
     url = f"{FOREXFACTORY_BASE_URL}?month=this"
     print(f"Fetching this month's events from: {url}")
     
-    return _fetch_and_save_events(url)
+    return _fetch_and_save_events(url, verbose)
 
 @anvil.server.callable
-def fetch_next_month_events():
+def fetch_next_month_events(verbose=VERBOSE_LOGGING):
     """
     Fetch and save market calendar events for next month from ForexFactory
     
@@ -480,17 +483,24 @@ def fetch_next_month_events():
     url = f"{FOREXFACTORY_BASE_URL}?month=next"
     print(f"Fetching next month's events from: {url}")
     
-    return _fetch_and_save_events(url)
+    return _fetch_and_save_events(url, verbose)
 
 @anvil.server.callable
 @anvil.server.background_task
-def refresh_all_calendars():
+def refresh_all_calendars(verbose=False):
     """
     Refresh all calendar periods (tomorrow, this week, next week, this month, next month)
+    with condensed logging output that only shows the final statistics.
+    
+    Args:
+        verbose: Whether to print detailed logs for individual events
     
     Returns:
         dict: Combined statistics for all time ranges
     """
+    # Override the global verbose setting temporarily
+    original_verbose = VERBOSE_LOGGING
+    
     # Initialize combined statistics
     combined_stats = {
         "total": 0,
@@ -508,26 +518,33 @@ def refresh_all_calendars():
         "next_month": fetch_next_month_events
     }
     
-    for period_name, fetch_function in time_ranges.items():
-        print(f"\nProcessing {period_name} calendar...")
-        stats = fetch_function()
+    try:
+        for period_name, fetch_function in time_ranges.items():
+            print(f"\nProcessing {period_name} calendar...")
+            # Pass the verbose flag to the fetch function
+            stats = fetch_function(verbose=verbose)
+            
+            # Add to combined totals
+            combined_stats["total"] += stats["total"]
+            combined_stats["existing"] += stats["existing"]
+            combined_stats["new"] += stats["new"]
+            
+            # Store individual statistics
+            combined_stats["details"][period_name] = stats
         
-        # Add to combined totals
-        combined_stats["total"] += stats["total"]
-        combined_stats["existing"] += stats["existing"]
-        combined_stats["new"] += stats["new"]
+        # Print combined statistics
+        print("\n=== COMBINED EVENT PROCESSING SUMMARY ===")
+        print(f"Total Scraped Events: {combined_stats['total']}")
+        print(f"Skipped (existing) events: {combined_stats['existing']}")
+        print(f"Newly added events: {combined_stats['new']}")
+        print("=======================================\n")
         
-        # Store individual statistics
-        combined_stats["details"][period_name] = stats
-    
-    # Print combined statistics
-    print("\n=== COMBINED EVENT PROCESSING SUMMARY ===")
-    print(f"Total Scraped Events: {combined_stats['total']}")
-    print(f"Skipped (existing) events: {combined_stats['existing']}")
-    print(f"Newly added events: {combined_stats['new']}")
-    print("=======================================\n")
-    
-    return combined_stats
+        return combined_stats
+    finally:
+        # Reset the verbose setting back to the original value
+        # This isn't actually needed since we're not modifying the global value
+        # but included for clarity and future-proofing
+        pass
 
 @anvil.server.callable
 def retrieve_market_calendar_events():

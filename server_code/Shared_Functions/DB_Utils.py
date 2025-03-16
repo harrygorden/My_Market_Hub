@@ -21,7 +21,7 @@ import datetime
 #
 
 @anvil.server.callable
-def save_market_calendar_event(event_data):
+def save_market_calendar_event(event_data, verbose=True):
     """
     Save a single market calendar event to the marketcalendar Anvil table
     
@@ -35,14 +35,16 @@ def save_market_calendar_event(event_data):
             - forecast (str): Forecast value
             - previous (str): Previous value
             - timezone (str): The timezone of the source website
+        verbose (bool): Whether to print detailed logs
             
     Returns:
         row: The newly created or updated table row
     """
     try:
         # Debug the incoming event data with special focus on the impact
-        print(f"Processing event: {event_data['event']} on {event_data['date']}")
-        print(f"Impact value being saved: '{event_data.get('impact', '')}'")
+        if verbose:
+            print(f"Processing event: {event_data['event']} on {event_data['date']}")
+            print(f"Impact value being saved: '{event_data.get('impact', '')}'")
         
         # Convert date string to datetime.date object
         event_date = datetime.datetime.strptime(event_data['date'], '%Y-%m-%d').date()
@@ -82,7 +84,8 @@ def save_market_calendar_event(event_data):
             # Only update fields if the new data has a non-empty value
             if event_data.get('impact') and event_data['impact'] != existing_event['impact']:
                 updates['impact'] = event_data['impact']
-                print(f"Updating impact from '{existing_event['impact']}' to '{event_data['impact']}'")
+                if verbose:
+                    print(f"Updating impact from '{existing_event['impact']}' to '{event_data['impact']}'")
             
             if event_data.get('forecast') and event_data['forecast'] != existing_event['forecast']:
                 updates['forecast'] = event_data['forecast']
@@ -93,15 +96,17 @@ def save_market_calendar_event(event_data):
             # Only update if we have changes
             if updates:
                 existing_event.update(**updates)
-                print(f"Updated existing event: {event_data['event']} on {event_data['date']} at {event_data['time']}")
-                print(f"New impact value in database: '{existing_event['impact']}'")
-            else:
+                if verbose:
+                    print(f"Updated existing event: {event_data['event']} on {event_data['date']} at {event_data['time']}")
+                    print(f"New impact value in database: '{existing_event['impact']}'")
+            elif verbose:
                 print(f"No changes needed for: {event_data['event']} on {event_data['date']} at {event_data['time']}")
                 
             return existing_event
         else:
             # Create new event
-            print(f"Creating new event with impact: '{event_data.get('impact', '')}'")
+            if verbose:
+                print(f"Creating new event with impact: '{event_data.get('impact', '')}'")
             new_event = app_tables.marketcalendar.add_row(
                 date=event_date,
                 time=event_data['time'],
@@ -111,8 +116,9 @@ def save_market_calendar_event(event_data):
                 forecast=event_data.get('forecast', ''),
                 previous=event_data.get('previous', '')
             )
-            print(f"Added new event: {event_data['event']} on {event_data['date']} at {event_data['time']}")
-            print(f"Impact value saved to database: '{new_event['impact']}'")
+            if verbose:
+                print(f"Added new event: {event_data['event']} on {event_data['date']} at {event_data['time']}")
+                print(f"Impact value saved to database: '{new_event['impact']}'")
             return new_event
     
     except Exception as e:
@@ -120,12 +126,13 @@ def save_market_calendar_event(event_data):
         return None
 
 @anvil.server.callable
-def save_multiple_market_calendar_events(events_list):
+def save_multiple_market_calendar_events(events_list, verbose=True):
     """
     Save multiple market calendar events to the marketcalendar Anvil table
     
     Args:
         events_list (list): List of event dictionaries
+        verbose (bool): Whether to print detailed logs
         
     Returns:
         dict: Statistics about processed events containing:
@@ -134,10 +141,12 @@ def save_multiple_market_calendar_events(events_list):
             - new: Number of newly added events
     """
     if not events_list:
-        print("No events to save")
+        if verbose:
+            print("No events to save")
         return {"total": 0, "existing": 0, "new": 0}
     
-    print(f"Processing {len(events_list)} events for saving to database")
+    if verbose:
+        print(f"Processing {len(events_list)} events for saving to database")
     
     stats = {
         "total": len(events_list),
@@ -163,7 +172,7 @@ def save_multiple_market_calendar_events(events_list):
                 existing_event = db_event
                 break
         
-        result = save_market_calendar_event(event)
+        result = save_market_calendar_event(event, verbose)
         
         if result:
             if existing_event:
@@ -171,10 +180,11 @@ def save_multiple_market_calendar_events(events_list):
             else:
                 stats["new"] += 1
     
-    print(f"Event processing statistics:")
-    print(f"Total Scraped Events: {stats['total']}")
-    print(f"Skipped (existing) events: {stats['existing']}")
-    print(f"Newly added events: {stats['new']}")
+    if verbose:
+        print(f"Event processing statistics:")
+        print(f"Total Scraped Events: {stats['total']}")
+        print(f"Skipped (existing) events: {stats['existing']}")
+        print(f"Newly added events: {stats['new']}")
     
     return stats
 
