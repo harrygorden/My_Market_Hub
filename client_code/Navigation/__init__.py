@@ -11,6 +11,7 @@ import anvil.server
 from ..Home_Form import Home_Form
 from ..ES_Analysis_Form import ES_Analysis_Form
 from ..Flow_Analysis_Form import Flow_Analysis_Form
+from ..Upcoming_Events_Form import Upcoming_Events_Form
 from ..Whale_Watching_Form import Whale_Watching_Form
 from ..Key_Lines_Form import Key_Lines_Form
 
@@ -41,6 +42,12 @@ class Navigation(NavigationTemplate):
     # Clear the content panel and add the Flow Analysis form
     self.content_panel.clear()
     self.content_panel.add_component(Flow_Analysis_Form())
+    
+  def navigation_button_upcoming_events_click(self, **event_args):
+    """Handler for Upcoming Events button click"""
+    # Clear the content panel and add the Upcoming Events form
+    self.content_panel.clear()
+    self.content_panel.add_component(Upcoming_Events_Form())
     
   def navigation_button_whale_watching_click(self, **event_args):
     """Handler for Whale Watching button click"""
