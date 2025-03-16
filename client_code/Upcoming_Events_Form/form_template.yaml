@@ -20,6 +20,35 @@ components:
         items: [UTC, Eastern, Central, Mountain, Pacific]
       type: DropDown
     - components:
+      - layout_properties: {grid_position: 'WWQICA,GXHYIN UBABNF,JKWFVP'}
+        name: spacer_1
+        properties: {height: 32}
+        type: Spacer
+      - layout_properties: {grid_position: 'WWQICA,GXHYIN UBABNF,PFNRZB PONTNU,WIFZIN'}
+        name: rich_text_2
+        properties: {align: center, content: 'Select desired imapct:', font_size: 18, spacing_above: none, spacing_below: none}
+        type: RichText
+      - layout_properties: {grid_position: 'WWQICA,GXHYIN UBABNF,PFNRZB TNFNGN,QKMIIU'}
+        name: check_box_low
+        properties: {align: right, checked: true, text: Low}
+        type: CheckBox
+      - layout_properties: {grid_position: 'WWQICA,GXHYIN UBABNF,PFNRZB TNFNGN,TMZRWT'}
+        name: check_box_medium
+        properties: {align: center, background: '', checked: true, foreground: 'theme:On Primary Container', text: Medium}
+        type: CheckBox
+      - layout_properties: {grid_position: 'WWQICA,YKBXNY'}
+        name: spacer_2
+        properties: {height: 32}
+        type: Spacer
+      - layout_properties: {grid_position: 'WWQICA,GXHYIN UBABNF,PFNRZB TNFNGN,YEOGWM'}
+        name: check_box_high
+        properties: {checked: true, text: High}
+        type: CheckBox
+      layout_properties: {grid_position: 'KCIDMH,NSBLED'}
+      name: outlined_card_3
+      properties: {background: 'theme:Primary Container', col_widths: '{"GXHYIN":45,"YKBXNY":15,"JKWFVP":20,"PFNRZB":40}', role: outlined-card}
+      type: ColumnPanel
+    - components:
       - data_bindings: []
         layout_properties: {}
         name: data_grid_repeating_panel
