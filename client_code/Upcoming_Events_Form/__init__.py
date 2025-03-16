@@ -88,6 +88,7 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     # 1. The DataGrid component holds the items property
     # 2. It automatically passes these items to its internal repeating panel
     # We need to set the items on the DataGrid itself, not on its repeating panel
+    self.data_grid_market_events.items = []
     self.data_grid_market_events.items = events
     
     # Show a message if no events were found
@@ -95,7 +96,7 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
       print("No events found for the selected date range")
     
     # Force UI refresh
-    anvil.js.window.setTimeout(lambda: self.refresh_data_bindings(), 100)
+    anvil.js.window.setTimeout(lambda: self.data_grid_market_events.refresh_data_bindings(), 100)
   
   def get_date_range(self):
     """Calculate start and end dates based on the selected range"""

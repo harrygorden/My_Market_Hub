@@ -494,12 +494,18 @@ def debug_market_calendar_table():
         
         # Try to get a sample row
         try:
-            sample_row = app_tables.marketcalendar.get()
-            if sample_row:
+            rows = list(app_tables.marketcalendar.search())
+            if len(rows) == 0:
+                print("No rows found in marketcalendar table")
+            elif len(rows) > 1:
+                print("Warning: More than one row matched the query; returning the first row as sample.")
+                sample_row = rows[0]
                 print(f"Successfully got a sample row with keys: {list(sample_row.keys())}")
                 print(f"Sample row values: {dict(sample_row)}")
             else:
-                print("No rows found in marketcalendar table")
+                sample_row = rows[0]
+                print(f"Successfully got a sample row with keys: {list(sample_row.keys())}")
+                print(f"Sample row values: {dict(sample_row)}")
         except Exception as e:
             print(f"Error getting sample row: {e}")
         
