@@ -20,8 +20,10 @@ components:
         items: [UTC, Eastern, Central, Mountain, Pacific]
       type: DropDown
     - components:
-      - name: repeating_panel_1
-        properties: {item_template: Upcoming_Events_Form.RowTemplate1}
+      - data_bindings: []
+        layout_properties: {}
+        name: repeating_panel_1
+        properties: {item_template: Upcoming_Events_Form.RowTemplate1, role: null}
         type: RepeatingPanel
       layout_properties: {grid_position: 'LRYAAB,RJJLUA'}
       name: data_grid_market_events
