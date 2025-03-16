@@ -486,6 +486,7 @@ def get_next_high_impact_event(target_timezone="UTC"):
     import datetime
     import pytz
     from anvil.tables import app_tables
+    import anvil.tables.query as q
     
     print(f"Fetching next high impact event, timezone: {target_timezone}")
     
@@ -506,98 +507,145 @@ def get_next_high_impact_event(target_timezone="UTC"):
     current_date = now.date()
     
     try:
-        # Get all rows from marketcalendar table
-        rows = app_tables.marketcalendar.search()
+        # Get today's date as a string for logging
+        today_str = current_date.strftime("%Y-%m-%d")
+        print(f"Current date: {today_str}")
         
-        # Filter for high impact events on or after current date
-        high_impact_events = []
-        for row in rows:
-            row_date = row['date']
-            
-            # Convert string date to date object if needed
-            if isinstance(row_date, str):
+        # Use a manual approach iterating through all rows - simplest approach
+        all_events = []
+        events_table = app_tables.marketcalendar
+        
+        # First get all rows from the table
+        print("Retrieving all events from marketcalendar table")
+        for row in events_table.search():
+            try:
+                # Extract values from the row - use try/except for each field
                 try:
-                    row_date = datetime.datetime.strptime(row_date, "%Y-%m-%d").date()
+                    row_date = row['date']
                 except:
-                    # Skip if conversion fails
+                    print("Error accessing date field")
                     continue
-            
-            # Skip past events
-            if row_date < current_date:
-                continue
-            
-            # Check for high impact
-            impact = row.get('impact', '')
-            if isinstance(impact, str) and impact.lower() == 'high':
-                # This is a high impact event on or after current date
-                # Parse the time and create a full datetime
-                time_str = row.get('time', '')
-                if time_str and isinstance(time_str, str):
+                    
+                try:
+                    row_time = row['time']
+                except:
+                    print("Error accessing time field")
+                    continue
+                    
+                try:
+                    row_event = row['event']
+                except:
+                    row_event = "Unknown event"
+                    
+                try:
+                    row_impact = row['impact']
+                except:
+                    row_impact = "Unknown"
+                
+                # Skip if date is None
+                if row_date is None:
+                    continue
+                
+                # Convert date to a datetime.date object if it's a string
+                if isinstance(row_date, str):
                     try:
-                        # Try to parse the time (12-hour format with AM/PM)
-                        try:
-                            event_time = datetime.datetime.strptime(time_str, "%I:%M %p").time()
-                        except ValueError:
-                            # Try 24-hour format
-                            event_time = datetime.datetime.strptime(time_str, "%H:%M").time()
-                        
-                        # Create full datetime in UTC
-                        event_datetime = datetime.datetime.combine(row_date, event_time)
-                        
-                        # Make timezone aware (assume stored in UTC)
-                        event_datetime = pytz.UTC.localize(event_datetime)
-                        
-                        # If it's today, check if it's in the future
-                        if row_date == current_date and event_datetime.astimezone(tz) <= now:
-                            # Event has already passed today
-                            continue
-                        
-                        # Convert to target timezone for display
-                        converted_dt = event_datetime.astimezone(tz)
-                        converted_time = converted_dt.strftime("%I:%M %p")
-                        
-                        # Create event dict with datetime for sorting
-                        event_dict = {
-                            'date': row_date.strftime("%Y-%m-%d") if hasattr(row_date, 'strftime') else str(row_date),
-                            'time': converted_time,
-                            'event': row['event'],
-                            'impact': impact,
-                            'datetime': event_datetime,  # For sorting
-                        }
-                        high_impact_events.append(event_dict)
-                    except Exception as e:
-                        print(f"Error parsing event time: {e}")
-                        # Include the event anyway with the original time
-                        event_dict = {
-                            'date': row_date.strftime("%Y-%m-%d") if hasattr(row_date, 'strftime') else str(row_date),
-                            'time': time_str,
-                            'event': row['event'],
-                            'impact': impact,
-                            # Use current datetime plus 1 year as fallback for sorting
-                            # This ensures events with unparseable times sort after events with valid times
-                            'datetime': datetime.datetime.now(pytz.UTC) + datetime.timedelta(days=365),
-                        }
-                        high_impact_events.append(event_dict)
+                        row_date = datetime.datetime.strptime(row_date, "%Y-%m-%d").date()
+                    except:
+                        # Skip if conversion fails
+                        continue
+                
+                # Skip if date is in the past
+                if row_date < current_date:
+                    continue
+                
+                # Skip if not high impact
+                if row_impact is None or not isinstance(row_impact, str) or row_impact.lower() != 'high':
+                    continue
+                
+                # Create a dict with the event data
+                event = {
+                    'date': row_date.strftime("%Y-%m-%d") if hasattr(row_date, 'strftime') else str(row_date),
+                    'time': row_time,
+                    'event': row_event,
+                    'impact': row_impact
+                }
+                
+                # Add to our list
+                all_events.append(event)
+                
+            except Exception as row_error:
+                print(f"Error processing row: {str(row_error)}")
+                continue
+        
+        print(f"Found {len(all_events)} high impact events on or after today")
         
         # If no events found, return None
-        if not high_impact_events:
+        if not all_events:
             print("No upcoming high impact events found")
             return None
         
-        # Sort by datetime (earliest first)
-        high_impact_events.sort(key=lambda x: x['datetime'])
+        # Process each event to determine the next one
+        next_events = []
+        for event in all_events:
+            # Parse the date and time into a datetime for comparison
+            event_date = event['date']
+            event_time = event['time']
+            
+            try:
+                # Try to parse the datetime
+                # First try 12-hour format (8:30 AM)
+                try:
+                    dt = datetime.datetime.strptime(f"{event_date} {event_time}", "%Y-%m-%d %I:%M %p")
+                except ValueError:
+                    # Try 24-hour format (08:30)
+                    dt = datetime.datetime.strptime(f"{event_date} {event_time}", "%Y-%m-%d %H:%M")
+                
+                # Make the datetime timezone-aware in UTC
+                dt_utc = pytz.UTC.localize(dt)
+                
+                # Convert to the target timezone
+                dt_local = dt_utc.astimezone(tz)
+                
+                # Skip if the event has already passed
+                if event_date == today_str and dt_local <= now:
+                    continue
+                
+                # Format the time in the target timezone
+                local_time = dt_local.strftime("%I:%M %p")
+                
+                # Add to our list of events with datetime for sorting
+                next_event = event.copy()
+                next_event['time'] = local_time  # Use the converted time
+                next_event['datetime'] = dt_utc  # For sorting
+                next_events.append(next_event)
+                
+            except Exception as dt_error:
+                print(f"Error processing datetime for event {event['event']}: {str(dt_error)}")
+                # Skip events we can't parse
+                continue
+        
+        # If no valid events found, return None
+        if not next_events:
+            print("No upcoming high impact events with valid datetime found")
+            return None
+        
+        # Sort events by datetime
+        next_events.sort(key=lambda x: x['datetime'])
         
         # Get the next event
-        next_event = high_impact_events[0]
+        next_event = next_events[0]
         
-        # Remove the datetime key used for sorting before returning
-        next_event_clean = {k: v for k, v in next_event.items() if k != 'datetime'}
+        # Remove the datetime key used for sorting
+        if 'datetime' in next_event:
+            del next_event['datetime']
         
-        print(f"Next high impact event: {next_event_clean['event']} on {next_event_clean['date']} at {next_event_clean['time']}")
-        return next_event_clean
-    
+        print(f"Next high impact event: {next_event['event']} on {next_event['date']} at {next_event['time']}")
+        return next_event
+        
     except Exception as e:
         print(f"Error in get_next_high_impact_event: {type(e).__name__} - {str(e)}")
+        import traceback
+        traceback.print_exc()
         return None
 
 @anvil.server.callable
