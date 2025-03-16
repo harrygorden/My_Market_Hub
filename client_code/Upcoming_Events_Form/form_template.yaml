@@ -5,6 +5,20 @@ components:
     properties: {align: center, content: Upcoming Events, font_size: 40}
     type: RichText
   - components:
+    - components:
+      - layout_properties: {grid_position: 'JCZJEO,UVWYMV'}
+        name: rich_text_high_impact_event_countdown
+        properties: {content: High Impact event timer countdown placeholder}
+        type: RichText
+      layout_properties: {grid_position: 'RMULBG,UNQTHP'}
+      name: outlined_card_5
+      properties: {background: 'theme:Primary Container', role: outlined-card}
+      type: ColumnPanel
+    layout_properties: {grid_position: 'AXLLVU,PEPLZE'}
+    name: outlined_card_4
+    properties: {background: 'theme:Primary', role: outlined-card}
+    type: ColumnPanel
+  - components:
     - event_bindings: {change: drop_down_time_range_change}
       layout_properties: {grid_position: 'JJOBQI,JOJRQP'}
       name: drop_down_time_range
