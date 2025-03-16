@@ -3,10 +3,12 @@ from anvil import *
 import anvil.tables as tables
 import anvil.tables.query as q
 from anvil.tables import app_tables
+import anvil.google.auth, anvil.google.drive
+from anvil.google.drive import app_files
 import anvil.server
 import datetime
 import time
-import pytz
+
 
 class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
   def __init__(self, **properties):
@@ -127,7 +129,6 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     try:
       # Get current time in UTC for consistent countdown calculation
       now = datetime.datetime.utcnow()
-      now = pytz.UTC.localize(now)  # Make it timezone-aware
       
       # Parse event datetime - these times are already in UTC from the server
       event_date_str = self.next_high_impact_event.get('date', '')
@@ -142,62 +143,44 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
         )
         return
       
+      # Try to parse datetime in different formats
+      try:
+        # Try 12-hour format first (8:30 AM)
+        event_datetime = datetime.datetime.strptime(f"{event_date_str} {event_time_str}", "%Y-%m-%d %I:%M %p")
+      except ValueError:
+        try:
+          # Try 24-hour format (08:30)
+          event_datetime = datetime.datetime.strptime(f"{event_date_str} {event_time_str}", "%Y-%m-%d %H:%M")
+        except ValueError:
+          # If all parsing fails, show error message
+          self.rich_text_high_impact_event_countdown.content = (
+            f"Next High Impact Event\n\n"
+            f"{event_name}\n{event_date_str} at {event_time_str}\n"
+            f"(Unable to calculate countdown)"
+          )
+          return
+    
       # Convert the event_time_str to Eastern Time for display
       try:
-        # Instead of using the event_datetime which might have parsing issues,
-        # directly parse the UTC time string and convert to Eastern
+        # Import pytz for timezone conversion
+        import pytz
         
-        # First, get the date part
-        event_date_obj = datetime.datetime.strptime(event_date_str, "%Y-%m-%d").date()
-        
-        # Then parse the time part
-        try:
-          # Try 12-hour format first (8:30 AM)
-          time_obj = datetime.datetime.strptime(event_time_str, "%I:%M %p").time()
-        except ValueError:
-          try:
-            # Try 24-hour format (08:30)
-            time_obj = datetime.datetime.strptime(event_time_str, "%H:%M").time()
-          except ValueError:
-            # If all parsing fails, use a default time
-            print(f"Could not parse time: {event_time_str}")
-            raise ValueError(f"Could not parse time: {event_time_str}")
-            
-        # Combine date and time into a datetime object
-        combined_dt = datetime.datetime.combine(event_date_obj, time_obj)
-        
-        # Make the datetime timezone-aware (UTC)
-        utc_dt = pytz.UTC.localize(combined_dt)
+        # Parse the event time (in UTC)
+        event_datetime_utc = event_datetime.replace(tzinfo=pytz.UTC)
         
         # Convert to Eastern Time
         eastern_tz = pytz.timezone("America/New_York")
-        eastern_dt = utc_dt.astimezone(eastern_tz)
+        event_datetime_eastern = event_datetime_utc.astimezone(eastern_tz)
         
         # Format the time for display
-        eastern_time_str = eastern_dt.strftime("%I:%M %p")
-        
-        print(f"Converted time: UTC {event_time_str} -> Eastern {eastern_time_str}")
+        eastern_time_str = event_datetime_eastern.strftime("%I:%M %p")
       except Exception as e:
         print(f"Error converting time to Eastern: {str(e)}")
         # Fallback to original time string if conversion fails
         eastern_time_str = event_time_str
     
       # Calculate time difference
-      try:
-        # Get current time in UTC for consistent countdown calculation
-        now = datetime.datetime.utcnow()
-        now = pytz.UTC.localize(now)  # Make it timezone-aware
-        
-        # Calculate time difference using UTC times for consistency
-        time_diff = utc_dt.astimezone(pytz.UTC) - now
-      except Exception as e:
-        print(f"Error calculating time difference: {str(e)}")
-        self.rich_text_high_impact_event_countdown.content = (
-          f"Next High Impact Event\n\n"
-          f"{event_name}\n{event_date_str} at {eastern_time_str} (Eastern)\n"
-          f"(Unable to calculate countdown)"
-        )
-        return
+      time_diff = event_datetime - now
       
       # Check if event is in the past
       if time_diff.total_seconds() <= 0:
