@@ -473,6 +473,131 @@ def get_market_calendar_events_with_timezone(start_date, end_date, target_timezo
     return events
 
 @anvil.server.callable
+def get_next_high_impact_event(target_timezone="UTC"):
+    """
+    Get the next upcoming high impact event from the current time
+    
+    Args:
+        target_timezone (str, optional): Target timezone. Defaults to "UTC".
+        
+    Returns:
+        dict: Event dictionary with date, time, event, impact details or None if no events found
+    """
+    import datetime
+    import pytz
+    from anvil.tables import app_tables
+    
+    print(f"Fetching next high impact event, timezone: {target_timezone}")
+    
+    # Get timezone object
+    if target_timezone == "Eastern":
+        tz = pytz.timezone("America/New_York")
+    elif target_timezone == "Central":
+        tz = pytz.timezone("America/Chicago")
+    elif target_timezone == "Mountain":
+        tz = pytz.timezone("America/Denver")
+    elif target_timezone == "Pacific":
+        tz = pytz.timezone("America/Los_Angeles")
+    else:
+        tz = pytz.timezone("UTC")
+    
+    # Get current time in the target timezone
+    now = datetime.datetime.now(tz)
+    current_date = now.date()
+    
+    # Get all rows from marketcalendar table
+    rows = app_tables.marketcalendar.search()
+    
+    # Filter for high impact events on or after current date
+    high_impact_events = []
+    for row in rows:
+        row_date = row['date']
+        
+        # Convert string date to date object if needed
+        if isinstance(row_date, str):
+            try:
+                row_date = datetime.datetime.strptime(row_date, "%Y-%m-%d").date()
+            except:
+                # Skip if conversion fails
+                continue
+        
+        # Skip past events
+        if row_date < current_date:
+            continue
+        
+        # Check for high impact
+        impact = row.get('impact', '')
+        if isinstance(impact, str) and impact.lower() == 'high':
+            # This is a high impact event on or after current date
+            # Parse the time and create a full datetime
+            time_str = row.get('time', '')
+            if time_str and isinstance(time_str, str):
+                try:
+                    # Try to parse the time (12-hour format with AM/PM)
+                    try:
+                        event_time = datetime.datetime.strptime(time_str, "%I:%M %p").time()
+                    except ValueError:
+                        # Try 24-hour format
+                        event_time = datetime.datetime.strptime(time_str, "%H:%M").time()
+                    
+                    # Create full datetime in UTC
+                    event_datetime = datetime.datetime.combine(row_date, event_time)
+                    
+                    # Make timezone aware (assume stored in UTC)
+                    event_datetime = pytz.UTC.localize(event_datetime)
+                    
+                    # If it's today, check if it's in the future
+                    if row_date == current_date and event_datetime.astimezone(tz) <= now:
+                        # Event has already passed today
+                        continue
+                    
+                    # Convert to target timezone for display
+                    converted_dt = event_datetime.astimezone(tz)
+                    converted_time = converted_dt.strftime("%I:%M %p")
+                    
+                    # Create event dict with datetime for sorting
+                    event_dict = {
+                        'date': row_date.strftime("%Y-%m-%d") if hasattr(row_date, 'strftime') else str(row_date),
+                        'time': converted_time,
+                        'event': row['event'],
+                        'impact': impact,
+                        'datetime': event_datetime,  # For sorting
+                        'datetime_tz': converted_dt  # For countdown calc
+                    }
+                    high_impact_events.append(event_dict)
+                except Exception as e:
+                    print(f"Error parsing event time: {e}")
+                    # Include the event anyway with the original time
+                    event_dict = {
+                        'date': row_date.strftime("%Y-%m-%d") if hasattr(row_date, 'strftime') else str(row_date),
+                        'time': time_str,
+                        'event': row['event'],
+                        'impact': impact,
+                        # Use current datetime plus 1 year as fallback for sorting
+                        # This ensures events with unparseable times sort after events with valid times
+                        'datetime': datetime.datetime.now(pytz.UTC) + datetime.timedelta(days=365),
+                        'datetime_tz': now + datetime.timedelta(days=365)
+                    }
+                    high_impact_events.append(event_dict)
+    
+    # If no events found, return None
+    if not high_impact_events:
+        print("No upcoming high impact events found")
+        return None
+    
+    # Sort by datetime (earliest first)
+    high_impact_events.sort(key=lambda x: x['datetime'])
+    
+    # Get the next event
+    next_event = high_impact_events[0]
+    
+    # Remove the datetime keys used for sorting before returning
+    next_event_clean = {k: v for k, v in next_event.items() if k not in ['datetime']}
+    
+    print(f"Next high impact event: {next_event_clean['event']} on {next_event_clean['date']} at {next_event_clean['time']}")
+    return next_event_clean
+
+@anvil.server.callable
 def debug_market_calendar_table():
     """Debug function to check the market calendar table structure and permissions"""
     try:

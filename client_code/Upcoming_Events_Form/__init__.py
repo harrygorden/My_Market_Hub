@@ -7,6 +7,7 @@ import anvil.google.auth, anvil.google.drive
 from anvil.google.drive import app_files
 import anvil.server
 import datetime
+import time
 
 
 class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
@@ -49,12 +50,20 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     sample_result = anvil.server.call('populate_sample_market_events')
     print(f"Sample data result: {sample_result}")
     
+    # Initialize the countdown timer for high impact events
+    self.next_high_impact_event = None
+    self.update_high_impact_countdown()
+    
+    # Set a timer to update the countdown every second
+    self.timer = self.call_js('setInterval', self.update_countdown_display, 1000)
+    
     # Refresh events
     self.refresh_events()
 
   def drop_down_time_zone_change(self, **event_args):
     """This method is called when the time zone is changed"""
     self.refresh_events()
+    self.update_high_impact_countdown()
     
   def drop_down_time_range_change(self, **event_args):
     """This method is called when the date range is changed"""
@@ -71,6 +80,93 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
   def check_box_high_change(self, **event_args):
     """This method is called when the High impact checkbox is changed"""
     self.refresh_events()
+  
+  def update_high_impact_countdown(self):
+    """Fetch the next high impact event and prepare countdown data"""
+    # Get the selected timezone
+    selected_timezone = self.drop_down_time_zone.selected_value
+    
+    # Call server to get the next high impact event
+    try:
+      self.next_high_impact_event = anvil.server.call('get_next_high_impact_event', selected_timezone)
+      
+      # If we have an event, update the countdown display immediately
+      if self.next_high_impact_event:
+        self.update_countdown_display()
+      else:
+        self.rich_text_high_impact_event_countdown.content = "<p>No upcoming high impact events found.</p>"
+    except Exception as e:
+      print(f"Error fetching next high impact event: {e}")
+      self.rich_text_high_impact_event_countdown.content = "<p>Error loading next high impact event.</p>"
+  
+  def update_countdown_display(self, **event_args):
+    """Update the countdown display with current time remaining"""
+    if not self.next_high_impact_event:
+      return
+    
+    try:
+      # Get current time in UTC
+      now = datetime.datetime.now()
+      
+      # Parse event datetime
+      event_datetime_str = f"{self.next_high_impact_event['date']} {self.next_high_impact_event['time']}"
+      
+      # Try to parse datetime in different formats
+      try:
+        # Try 12-hour format first (8:30 AM)
+        event_datetime = datetime.datetime.strptime(event_datetime_str, "%Y-%m-%d %I:%M %p")
+      except ValueError:
+        try:
+          # Try 24-hour format (08:30)
+          event_datetime = datetime.datetime.strptime(event_datetime_str, "%Y-%m-%d %H:%M")
+        except ValueError:
+          # If all parsing fails, show error message
+          self.rich_text_high_impact_event_countdown.content = (
+            f"<p>Next high impact event: {self.next_high_impact_event['event']} "
+            f"on {self.next_high_impact_event['date']} at {self.next_high_impact_event['time']}</p>"
+            f"<p>(Unable to calculate countdown)</p>"
+          )
+          return
+    
+      # Calculate time difference
+      time_diff = event_datetime - now
+      
+      # Check if event is in the past
+      if time_diff.total_seconds() <= 0:
+        self.rich_text_high_impact_event_countdown.content = (
+          f"<p><strong>{self.next_high_impact_event['event']}</strong> at "
+          f"{self.next_high_impact_event['time']} has already occurred.</p>"
+          f"<p>Please refresh to see the next upcoming high impact event.</p>"
+        )
+        # Update the next event (this will refresh at most once a minute to avoid server spam)
+        if int(time.time()) % 60 == 0:
+          self.update_high_impact_countdown()
+        return
+      
+      # Calculate hours, minutes and seconds
+      total_seconds = int(time_diff.total_seconds())
+      hours = total_seconds // 3600
+      minutes = (total_seconds % 3600) // 60
+      seconds = total_seconds % 60
+      
+      # Format countdown string
+      if hours > 0:
+        countdown_text = f"{hours} hours, {minutes} minutes, and {seconds} seconds"
+      elif minutes > 0:
+        countdown_text = f"{minutes} minutes and {seconds} seconds"
+      else:
+        countdown_text = f"{seconds} seconds"
+      
+      # Update the rich text content
+      self.rich_text_high_impact_event_countdown.content = (
+        f"<p>There are <strong>{countdown_text}</strong> until</p>"
+        f"<p><strong>{self.next_high_impact_event['event']}</strong> at "
+        f"{self.next_high_impact_event['time']},</p>"
+        f"<p>the next upcoming high impact market event.</p>"
+      )
+    except Exception as e:
+      print(f"Error updating countdown: {e}")
+      self.rich_text_high_impact_event_countdown.content = "<p>Error updating countdown.</p>"
   
   def refresh_events(self):
     """Refresh the events grid based on selected filters"""
@@ -187,3 +283,16 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     
     # Default to today if something goes wrong
     return today, today
+  
+  def form_show(self, **event_args):
+    """This method is called when the form is shown on the page"""
+    # Start the countdown timer if not already started
+    if not hasattr(self, 'timer') or not self.timer:
+      self.timer = self.call_js('setInterval', self.update_countdown_display, 1000)
+  
+  def form_hide(self, **event_args):
+    """This method is called when the form is removed from the page"""
+    # Clean up the timer when the form is hidden
+    if hasattr(self, 'timer') and self.timer:
+      self.call_js('clearInterval', self.timer)
+      self.timer = None
