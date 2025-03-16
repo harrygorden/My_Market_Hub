@@ -56,10 +56,9 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     
     # Set up the existing timer component
     self.timer_1.interval = 1
-    self.timer_1.tick += self.update_countdown_display
+    self.timer_1.set_event_handler('tick', self.update_countdown_display)
     
-    # Start the timer
-    self.timer_1.start()
+    # Start the timer (it will automatically start when interval > 0)
     
     # Refresh events
     self.refresh_events()
@@ -301,11 +300,10 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     """This method is called when the form is shown on the page"""
     # Make sure the timer is running
     if hasattr(self, 'timer_1') and self.timer_1:
-      if not self.timer_1.is_running:
-        self.timer_1.start()
+      self.timer_1.interval = 1
   
   def form_hide(self, **event_args):
     """This method is called when the form is removed from the page"""
     # Stop the timer when the form is hidden
     if hasattr(self, 'timer_1') and self.timer_1:
-      self.timer_1.stop()
+      self.timer_1.interval = 0
