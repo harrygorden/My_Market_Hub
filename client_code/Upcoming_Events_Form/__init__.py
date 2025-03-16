@@ -13,12 +13,43 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
   def __init__(self, **properties):
     # Set Form properties and Data Bindings.
     self.init_components(**properties)
+
+    # Set up initial dropdown values
     
-    # Initialize default values for dropdowns
-    self.drop_down_time_range.selected_value = "Today"
-    self.drop_down_time_zone.selected_value = "Eastern"
+    # Set up date range dropdown options
+    date_ranges = [
+      'Today',
+      'Tomorrow',
+      'This Week',
+      'Next Week',
+      'This Month',
+      'Next Month'
+    ]
+    self.drop_down_time_range.items = date_ranges
+    self.drop_down_time_range.selected_value = 'Today'
     
-    # Load initial data
+    # Set up timezone dropdown options
+    timezones = [
+      'UTC',
+      'Eastern',
+      'Central',
+      'Mountain',
+      'Pacific'
+    ]
+    self.drop_down_time_zone.items = timezones
+    self.drop_down_time_zone.selected_value = 'Eastern'
+    
+    # Debug the database
+    print("Debugging the market calendar table...")
+    debug_result = anvil.server.call('debug_market_calendar_table')
+    print(f"Debug result: {debug_result}")
+    
+    # Try to populate sample data if needed
+    print("Checking if we need to populate sample data...")
+    sample_result = anvil.server.call('populate_sample_market_events')
+    print(f"Sample data result: {sample_result}")
+    
+    # Refresh events
     self.refresh_events()
 
   def drop_down_time_zone_change(self, **event_args):

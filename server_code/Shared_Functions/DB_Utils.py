@@ -377,23 +377,53 @@ def get_market_calendar_events_with_timezone(start_date, end_date, target_timezo
         # Get the pytz timezone object
         tz = pytz.timezone(timezone_map[target_timezone])
         
-        # Debug column names in the marketcalendar table
-        columns = [col.name for col in app_tables.marketcalendar.list_columns()]
-        print(f"Columns in marketcalendar table: {columns}")
-        
-        # Get events from the database - use direct column reference instead of attribute access
+        # Debug column names in the marketcalendar table - safer approach
         try:
-            # Try with attribute access first for backwards compatibility
+            # Try to get a sample row to understand the schema
+            sample_row = app_tables.marketcalendar.get()
+            if sample_row:
+                print(f"Sample row keys: {list(sample_row.keys())}")
+            else:
+                print("No sample row found in marketcalendar table")
+        except Exception as e:
+            print(f"Error getting sample row: {e}")
+        
+        # Get events from the database - try both approaches
+        events_list = []
+        try:
+            # Approach 1: Using between query with attribute access
             events_list = list(app_tables.marketcalendar.search(
                 q.between(app_tables.marketcalendar.date, start_date, end_date)
             ))
             print("Query successful using attribute access")
-        except AttributeError:
-            # If that fails, try with dictionary access
-            print("Attribute access failed, trying dictionary access")
-            events_list = list(app_tables.marketcalendar.search(
-                q.between("date", start_date, end_date)
-            ))
+        except Exception as e1:
+            print(f"Attribute access failed: {e1}")
+            try:
+                # Approach 2: Using between query with string column name
+                events_list = list(app_tables.marketcalendar.search(
+                    q.between("date", start_date, end_date)
+                ))
+                print("Query successful using string column name")
+            except Exception as e2:
+                print(f"String column access also failed: {e2}")
+                # Approach 3: Just get all rows and filter in Python
+                try:
+                    all_rows = list(app_tables.marketcalendar.search())
+                    print(f"Retrieved {len(all_rows)} rows total")
+                    
+                    # If we have any rows, print the first one to see its structure
+                    if all_rows:
+                        print(f"First row keys: {list(all_rows[0].keys())}")
+                    
+                    # Filter manually
+                    events_list = [
+                        row for row in all_rows 
+                        if isinstance(row.get('date'), datetime.date) and
+                        start_date <= row['date'] <= end_date
+                    ]
+                    print(f"Filtered to {len(events_list)} rows in date range")
+                except Exception as e3:
+                    print(f"All approaches failed: {e3}")
         
         # Debug output - how many events were found?
         print(f"Found {len(events_list)} events between {start_date} and {end_date}")
@@ -410,18 +440,18 @@ def get_market_calendar_events_with_timezone(start_date, end_date, target_timezo
         for event_row in events_list:
             # First create the base event dictionary with data from database
             try:
+                # Use dict.get with default values to handle missing keys
                 event = {
-                    'date': event_row['date'].strftime('%Y-%m-%d'),
-                    'time': event_row['time'],
-                    'event': event_row['event'],
-                    'currency': event_row.get('currency', ''),
+                    'date': event_row.get('date', datetime.date.today()).strftime('%Y-%m-%d'),
+                    'time': event_row.get('time', ''),
+                    'event': event_row.get('event', ''),
                     'impact': event_row.get('impact', ''),
                     'forecast': event_row.get('forecast', ''),
                     'previous': event_row.get('previous', '')
                 }
-            except (KeyError, AttributeError) as e:
+            except Exception as e:
                 print(f"Error creating event dict: {e}")
-                print(f"Event row keys: {list(event_row.keys())}")
+                print(f"Event row: {event_row}")
                 continue
             
             # Convert time if target timezone is not UTC
@@ -467,3 +497,144 @@ def get_market_calendar_events_with_timezone(start_date, end_date, target_timezo
         import traceback
         print(traceback.format_exc())
         return []
+
+@anvil.server.callable
+def debug_market_calendar_table():
+    """Debug function to check the market calendar table structure and permissions"""
+    try:
+        # Check if we can access the table at all
+        print("Attempting to access marketcalendar table...")
+        
+        # Try to get the number of rows
+        try:
+            row_count = len(list(app_tables.marketcalendar.search()))
+            print(f"Successfully counted {row_count} rows in marketcalendar table")
+        except Exception as e:
+            print(f"Error counting rows: {e}")
+        
+        # Try to get a sample row
+        try:
+            sample_row = app_tables.marketcalendar.get()
+            if sample_row:
+                print(f"Successfully got a sample row with keys: {list(sample_row.keys())}")
+                print(f"Sample row values: {dict(sample_row)}")
+            else:
+                print("No rows found in marketcalendar table")
+        except Exception as e:
+            print(f"Error getting sample row: {e}")
+        
+        # Try to get table schema
+        try:
+            # This approach works in newer Anvil versions
+            schema = app_tables.marketcalendar.list_columns()
+            print(f"Table schema: {schema}")
+        except Exception as e:
+            print(f"Error getting table schema: {e}")
+        
+        return "Debugging completed - check server logs"
+    except Exception as e:
+        print(f"Overall debug error: {e}")
+        import traceback
+        print(traceback.format_exc())
+        return f"Error: {e}"
+
+@anvil.server.callable
+def populate_sample_market_events():
+    """
+    Add sample market events to the marketcalendar table for testing purposes
+    """
+    try:
+        import datetime
+        
+        # Check if the table already has events
+        event_count = len(list(app_tables.marketcalendar.search()))
+        if event_count > 0:
+            print(f"Table already has {event_count} events, not adding samples")
+            return f"Table already has {event_count} events"
+        
+        # Create sample events for the current date range
+        today = datetime.date.today()
+        
+        # Add events for today through next month
+        sample_events = [
+            # Today's events
+            {
+                'date': today,
+                'time': '08:30 AM',
+                'event': 'Initial Jobless Claims',
+                'impact': 'Medium',
+                'forecast': '215K',
+                'previous': '217K'
+            },
+            {
+                'date': today,
+                'time': '10:00 AM',
+                'event': 'Existing Home Sales',
+                'impact': 'Medium',
+                'forecast': '4.20M',
+                'previous': '4.38M'
+            },
+            
+            # Tomorrow's events
+            {
+                'date': today + datetime.timedelta(days=1),
+                'time': '09:45 AM',
+                'event': 'Manufacturing PMI',
+                'impact': 'High',
+                'forecast': '51.8',
+                'previous': '52.2'
+            },
+            
+            # This week's events (adding a few days ahead)
+            {
+                'date': today + datetime.timedelta(days=3),
+                'time': '02:00 PM',
+                'event': 'Fed Interest Rate Decision',
+                'impact': 'High',
+                'forecast': '5.50%',
+                'previous': '5.50%'
+            },
+            
+            # Next week's events
+            {
+                'date': today + datetime.timedelta(days=7),
+                'time': '08:30 AM',
+                'event': 'Durable Goods Orders',
+                'impact': 'Medium',
+                'forecast': '0.5%',
+                'previous': '0.2%'
+            },
+            
+            # This month's events
+            {
+                'date': today + datetime.timedelta(days=12),
+                'time': '08:30 AM',
+                'event': 'Nonfarm Payrolls',
+                'impact': 'High',
+                'forecast': '180K',
+                'previous': '175K'
+            },
+            
+            # Next month's events
+            {
+                'date': today + datetime.timedelta(days=35),
+                'time': '08:30 AM',
+                'event': 'GDP',
+                'impact': 'High',
+                'forecast': '2.8%',
+                'previous': '3.1%'
+            }
+        ]
+        
+        # Add the sample events to the database
+        for event in sample_events:
+            app_tables.marketcalendar.add_row(**event)
+        
+        print(f"Added {len(sample_events)} sample events to the marketcalendar table")
+        return f"Added {len(sample_events)} sample events"
+        
+    except Exception as e:
+        print(f"Error adding sample events: {e}")
+        import traceback
+        print(traceback.format_exc())
+        return f"Error: {e}"
