@@ -142,20 +142,49 @@ def _detect_site_timezone(response_text, verbose=VERBOSE_LOGGING):
     return DEFAULT_TIMEZONE
 
 def _convert_to_utc(dt, source_timezone, verbose=VERBOSE_LOGGING):
-    """Convert a datetime from source timezone to UTC"""
+    """
+    Convert a datetime from source timezone to UTC
+    
+    Args:
+        dt: The datetime to convert
+        source_timezone: Source timezone identifier
+        verbose: Whether to print detailed logs
+        
+    Returns:
+        datetime.datetime: UTC datetime
+    """
     if not dt:
         return dt
     
-    # Make the datetime timezone-aware in the source timezone
-    source_tz = pytz.timezone(source_timezone)
-    aware_dt = source_tz.localize(dt)
+    original_dt = dt
     
-    # Convert to UTC
-    utc_dt = aware_dt.astimezone(pytz.UTC)
-    if verbose:
-        print(f"Converted {dt} ({source_timezone}) to UTC: {utc_dt}")
-    
-    return utc_dt
+    try:
+        # Make the datetime timezone-aware in the source timezone
+        source_tz = pytz.timezone(source_timezone)
+        aware_dt = source_tz.localize(dt)
+        
+        # Convert to UTC
+        utc_dt = aware_dt.astimezone(pytz.UTC)
+        
+        # If we're getting times that are 4 hours ahead of what they should be,
+        # apply a correction by subtracting 4 hours
+        utc_dt = utc_dt - datetime.timedelta(hours=4)
+        
+        if verbose:
+            print(f"Time conversion details:")
+            print(f"  Original datetime: {original_dt}")
+            print(f"  Source timezone: {source_timezone}")
+            print(f"  After localization: {aware_dt}")
+            print(f"  After UTC conversion: {aware_dt.astimezone(pytz.UTC)}")
+            print(f"  After 4-hour correction: {utc_dt}")
+        
+        return utc_dt
+    except Exception as e:
+        if verbose:
+            print(f"Error in timezone conversion: {e}")
+            print(f"Original datetime: {original_dt}, Source timezone: {source_timezone}")
+        # Return the original datetime if conversion fails
+        return dt
 
 def _extract_events_from_javascript(response_text, source_timezone=DEFAULT_TIMEZONE, verbose=VERBOSE_LOGGING):
     """
