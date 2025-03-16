@@ -94,9 +94,6 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     # Show a message if no events were found
     if len(events) == 0:
       print("No events found for the selected date range")
-    
-    # Force UI refresh
-    anvil.js.window.setTimeout(lambda: self.data_grid_market_events.refresh_data_bindings(), 100)
   
   def get_date_range(self):
     """Calculate start and end dates based on the selected range"""
