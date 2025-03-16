@@ -30,12 +30,12 @@ components:
       properties:
         background: theme:Primary Container
         columns:
-        - {data_key: date, id: KMCFYF, title: date}
-        - {data_key: time, id: FCPXRI, title: time}
-        - {data_key: event, id: YOZLSI, title: event}
-        - {data_key: impact, id: EMAMUM, title: impact}
-        - {data_key: forecast, id: ISSGTE, title: forecast}
-        - {data_key: previous, id: OMMDHK, title: previous}
+        - {data_key: date, id: KMCFYF, title: Date}
+        - {data_key: time, id: FCPXRI, title: Time}
+        - {data_key: event, id: YOZLSI, title: Event}
+        - {data_key: impact, id: EMAMUM, title: Impact}
+        - {data_key: forecast, id: ISSGTE, title: Forecast}
+        - {data_key: previous, id: OMMDHK, title: Previous}
         role: tonal-data-grid
       type: DataGrid
     layout_properties: {full_width_row: false, grid_position: 'FBNCGY,NSPYHY'}
