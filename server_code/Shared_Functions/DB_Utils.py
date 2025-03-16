@@ -120,22 +120,55 @@ def save_multiple_market_calendar_events(events_list):
         events_list (list): List of event dictionaries
         
     Returns:
-        int: Number of successfully saved events
+        dict: Statistics about processed events containing:
+            - total: Total number of events processed
+            - existing: Number of existing events (skipped or updated)
+            - new: Number of newly added events
     """
     if not events_list:
         print("No events to save")
-        return 0
+        return {"total": 0, "existing": 0, "new": 0}
     
     print(f"Processing {len(events_list)} events for saving to database")
-    success_count = 0
+    
+    stats = {
+        "total": len(events_list),
+        "existing": 0,
+        "new": 0
+    }
     
     for event in events_list:
+        # Check if this event already exists before saving
+        event_date = datetime.datetime.strptime(event['date'], '%Y-%m-%d').date()
+        existing_events = app_tables.marketcalendar.search(
+            date=event_date,
+            event=event['event']
+        )
+        
+        # Check for time match using the same logic as in save_market_calendar_event
+        existing_event = None
+        for db_event in existing_events:
+            # Direct match or normalized time match
+            if (db_event['time'] == event['time'] or 
+                (db_event['time'] and event['time'] and
+                 db_event['time'].lower().replace(' ', '') == event['time'].lower().replace(' ', ''))):
+                existing_event = db_event
+                break
+        
         result = save_market_calendar_event(event)
+        
         if result:
-            success_count += 1
+            if existing_event:
+                stats["existing"] += 1
+            else:
+                stats["new"] += 1
     
-    print(f"Successfully processed {success_count} out of {len(events_list)} events")
-    return success_count
+    print(f"Event processing statistics:")
+    print(f"Total Scraped Events: {stats['total']}")
+    print(f"Skipped (existing) events: {stats['existing']}")
+    print(f"Newly added events: {stats['new']}")
+    
+    return stats
 
 @anvil.server.callable
 def clear_market_calendar_events_for_date_range(start_date, end_date):

@@ -270,24 +270,31 @@ def _fetch_and_save_events(url):
         url: Complete ForexFactory URL to fetch events from
         
     Returns:
-        int: Number of events processed
+        dict: Statistics about processed events
     """
     # Get the HTML response
     response_text = _get_response_text(url)
     if not response_text:
         print(f"Failed to get response from {url}")
-        return 0
+        return {"total": 0, "existing": 0, "new": 0}
     
     # Extract events from the HTML
     events = _extract_calendar_events(response_text)
     if not events:
         print("No events extracted from the page")
-        return 0
+        return {"total": 0, "existing": 0, "new": 0}
     
     # Save events to the database
-    saved_count = DB_Utils.save_multiple_market_calendar_events(events)
+    stats = DB_Utils.save_multiple_market_calendar_events(events)
     
-    return saved_count
+    # Format the statistics output
+    print("\nEvent Processing Summary:")
+    print(f"Total Scraped Events: {stats['total']}")
+    print(f"Skipped (existing) events: {stats['existing']}")
+    print(f"Newly added events: {stats['new']}")
+    print()
+    
+    return stats
 
 # Server callable functions for different time ranges
 
@@ -297,7 +304,7 @@ def fetch_tomorrow_events():
     Fetch and save market calendar events for tomorrow from ForexFactory
     
     Returns:
-        int: Number of events saved
+        dict: Statistics about processed events
     """
     url = f"{FOREXFACTORY_BASE_URL}?day=tomorrow"
     print(f"Fetching tomorrow's events from: {url}")
@@ -310,7 +317,7 @@ def fetch_this_week_events():
     Fetch and save market calendar events for the current week from ForexFactory
     
     Returns:
-        int: Number of events saved
+        dict: Statistics about processed events
     """
     url = f"{FOREXFACTORY_BASE_URL}?week=this"
     print(f"Fetching this week's events from: {url}")
@@ -323,7 +330,7 @@ def fetch_next_week_events():
     Fetch and save market calendar events for next week from ForexFactory
     
     Returns:
-        int: Number of events saved
+        dict: Statistics about processed events
     """
     url = f"{FOREXFACTORY_BASE_URL}?week=next"
     print(f"Fetching next week's events from: {url}")
@@ -336,7 +343,7 @@ def fetch_this_month_events():
     Fetch and save market calendar events for the current month from ForexFactory
     
     Returns:
-        int: Number of events saved
+        dict: Statistics about processed events
     """
     url = f"{FOREXFACTORY_BASE_URL}?month=this"
     print(f"Fetching this month's events from: {url}")
@@ -349,7 +356,7 @@ def fetch_next_month_events():
     Fetch and save market calendar events for next month from ForexFactory
     
     Returns:
-        int: Number of events saved
+        dict: Statistics about processed events
     """
     url = f"{FOREXFACTORY_BASE_URL}?month=next"
     print(f"Fetching next month's events from: {url}")
@@ -362,20 +369,45 @@ def refresh_all_calendars():
     Refresh all calendar periods (tomorrow, this week, next week, this month, next month)
     
     Returns:
-        dict: Count of events saved for each time range
+        dict: Combined statistics for all time ranges
     """
-    results = {
-        "tomorrow": fetch_tomorrow_events(),
-        "this_week": fetch_this_week_events(),
-        "next_week": fetch_next_week_events(),
-        "this_month": fetch_this_month_events(),
-        "next_month": fetch_next_month_events()
+    # Initialize combined statistics
+    combined_stats = {
+        "total": 0,
+        "existing": 0,
+        "new": 0,
+        "details": {}  # Store individual statistics for each period
     }
     
-    total_events = sum(results.values())
-    print(f"Total events saved across all calendars: {total_events}")
+    # Fetch and process events for each time period
+    time_ranges = {
+        "tomorrow": fetch_tomorrow_events,
+        "this_week": fetch_this_week_events,
+        "next_week": fetch_next_week_events,
+        "this_month": fetch_this_month_events,
+        "next_month": fetch_next_month_events
+    }
     
-    return results
+    for period_name, fetch_function in time_ranges.items():
+        print(f"\nProcessing {period_name} calendar...")
+        stats = fetch_function()
+        
+        # Add to combined totals
+        combined_stats["total"] += stats["total"]
+        combined_stats["existing"] += stats["existing"]
+        combined_stats["new"] += stats["new"]
+        
+        # Store individual statistics
+        combined_stats["details"][period_name] = stats
+    
+    # Print combined statistics
+    print("\n=== COMBINED EVENT PROCESSING SUMMARY ===")
+    print(f"Total Scraped Events: {combined_stats['total']}")
+    print(f"Skipped (existing) events: {combined_stats['existing']}")
+    print(f"Newly added events: {combined_stats['new']}")
+    print("=======================================\n")
+    
+    return combined_stats
 
 # Legacy functions for backward compatibility
 @anvil.server.callable
