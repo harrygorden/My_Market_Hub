@@ -109,8 +109,7 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     # Set items on the data grid
     self.data_grid_market_events.items = processed_events
     
-    # Force refresh on the repeating panel
-    self.data_grid_market_events.repeating_panel_1.refresh_data_bindings()
+    # No need to manually refresh the repeating panel - it's handled internally by the data grid
     
     # Update UI to show status
     if len(events) == 0:
