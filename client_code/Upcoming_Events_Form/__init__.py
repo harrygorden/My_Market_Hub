@@ -54,8 +54,12 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     self.next_high_impact_event = None
     self.update_high_impact_countdown()
     
-    # Set a timer to update the countdown every second
-    self.timer = self.call_js('setInterval', self.update_countdown_display, 1000)
+    # Create a timer component programmatically for countdown updates
+    self.timer = Timer(interval=1, repeat=True)
+    self.timer.tick += self.update_countdown_display
+    
+    # Start the timer
+    self.timer.start()
     
     # Refresh events
     self.refresh_events()
@@ -286,13 +290,13 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
   
   def form_show(self, **event_args):
     """This method is called when the form is shown on the page"""
-    # Start the countdown timer if not already started
-    if not hasattr(self, 'timer') or not self.timer:
-      self.timer = self.call_js('setInterval', self.update_countdown_display, 1000)
+    # Make sure the timer is running
+    if hasattr(self, 'timer') and self.timer:
+      if not self.timer.is_running:
+        self.timer.start()
   
   def form_hide(self, **event_args):
     """This method is called when the form is removed from the page"""
-    # Clean up the timer when the form is hidden
+    # Stop the timer when the form is hidden
     if hasattr(self, 'timer') and self.timer:
-      self.call_js('clearInterval', self.timer)
-      self.timer = None
+      self.timer.stop()
