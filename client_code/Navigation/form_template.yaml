@@ -34,7 +34,7 @@ components:
     name: navigation_button_whale_watching
     properties: {text: Whale Watching}
     type: Button
-  - event_bindings: {click: button_5_click}
+  - event_bindings: {click: navigation_button_key_lines_click}
     layout_properties: {grid_position: 'NRGYVL,XJYVUQ'}
     name: navigation_button_key_lines
     properties: {text: Key Lines}
