@@ -7,7 +7,6 @@ import pytz
 from ..Shared_Functions import DB_Utils
 
 # Constants
-CHICAGO_TZ = pytz.timezone('America/Chicago')
 FOREXFACTORY_BASE_URL = "https://www.forexfactory.com/calendar"
 USD_CURRENCY = "USD"
 
@@ -39,76 +38,33 @@ def _extract_site_timezone(response_text):
         try:
             site_timezone = pytz.timezone(site_timezone_name)
             print(f"Extracted site timezone: {site_timezone_name}")
-            return site_timezone
+            return site_timezone_name
         except Exception as e:
             print(f"Error setting site timezone: {e}")
     
-    # Fall back to Chicago time if extraction fails
-    print("Using America/Chicago timezone")
-    return CHICAGO_TZ
+    # Fall back to GMT if extraction fails
+    print("Using GMT as default timezone")
+    return "GMT"
 
-def _parse_event_date(date_text, now, site_timezone):
+def _parse_event_date(date_text, now):
     """Parse a date string and handle year transitions correctly"""
     try:
         # Add current year since it's not in the date string
         date_with_year = f"{date_text} {now.year}"
-        # Create a naive datetime object
+        # Create a datetime object
         parsed_date = datetime.datetime.strptime(date_with_year, "%a %b %d %Y")
         
-        # Make it timezone-aware in the site's timezone
-        parsed_date = site_timezone.localize(parsed_date)
-        
-        # Convert to Chicago time
-        parsed_date = parsed_date.astimezone(CHICAGO_TZ)
-        
         # Fix year if the parsed date is too far in the past (for December->January transition)
-        naive_now = now.replace(tzinfo=None)
-        naive_parsed = parsed_date.replace(tzinfo=None)
-        if (naive_now - naive_parsed).days > 300:
+        if (now - parsed_date).days > 300:
             # Create a new date with the next year
-            naive_parsed = datetime.datetime(
-                now.year + 1, parsed_date.month, parsed_date.day, 
-                parsed_date.hour, parsed_date.minute, parsed_date.second
+            parsed_date = datetime.datetime(
+                now.year + 1, parsed_date.month, parsed_date.day
             )
-            # Convert to aware datetime in site timezone then to Chicago
-            parsed_date = site_timezone.localize(naive_parsed).astimezone(CHICAGO_TZ)
         
         return parsed_date.strftime("%Y-%m-%d")
     except Exception as e:
         print(f"Error parsing date '{date_text}': {e}")
         return None
-
-def _parse_event_time(event_time, current_date, site_timezone):
-    """Parse event time and convert to Chicago timezone"""
-    # If the time is non-standard, return it as is
-    if not event_time or event_time == '' or event_time.lower() == 'all day' or event_time.lower() == 'tentative':
-        return event_time
-        
-    try:
-        # Parse standard time format (like "8:30am")
-        if re.match(r'^([0-9]{1,2}):([0-9]{2})(am|pm)$', event_time):
-            time_obj = datetime.datetime.strptime(event_time, "%I:%M%p")
-            
-            # Create a full datetime by combining the date and time
-            event_date_obj = datetime.datetime.strptime(current_date, "%Y-%m-%d")
-            full_datetime = datetime.datetime.combine(
-                event_date_obj.date(),
-                time_obj.time()
-            )
-            
-            # Add site timezone information
-            full_datetime = site_timezone.localize(full_datetime)
-            
-            # Convert to Chicago time
-            chicago_datetime = full_datetime.astimezone(CHICAGO_TZ)
-            
-            # Format the time for output
-            return chicago_datetime.strftime("%I:%M%p").lower()
-    except Exception as e:
-        print(f"Error converting time '{event_time}': {e}")
-    
-    # Return original if parsing fails
-    return event_time
 
 def _extract_impact_level(impact_span):
     """
@@ -170,8 +126,8 @@ def _extract_calendar_events(response_text):
     if not response_text:
         return []
     
-    # Get current time in Chicago timezone for date parsing
-    now = datetime.datetime.now(CHICAGO_TZ)
+    # Get current time for date parsing
+    now = datetime.datetime.now()
     
     # Extract site timezone
     site_timezone = _extract_site_timezone(response_text)
@@ -204,9 +160,9 @@ def _extract_calendar_events(response_text):
             date_span = date_cell.find('span')
             if date_span:
                 date_text = date_span.text.strip()
-                current_date = _parse_event_date(date_text, now, site_timezone)
+                current_date = _parse_event_date(date_text, now)
                 if current_date:
-                    print(f"Parsed date: {current_date} (Chicago time)")
+                    print(f"Parsed date: {current_date}")
         
         # Check if this is an event row
         if 'calendar__row' in row.get('class', []) and current_date:
@@ -219,23 +175,22 @@ def _extract_calendar_events(response_text):
                 if currency != USD_CURRENCY:
                     continue
                 
-                # Get the event time
+                # Get the event time - KEEP THE ORIGINAL TIME WITHOUT CONVERSION
                 time_cell = row.find('td', class_='calendar__cell calendar__time')
                 event_time = time_cell.text.strip() if time_cell else ''
                 
-                # Convert to Chicago timezone
-                chicago_event_time = _parse_event_time(event_time, current_date, site_timezone)
+                # Log the original time from ForexFactory
+                print(f"Original event time from ForexFactory: '{event_time}'")
                 
                 # Get the event name
                 event_cell = row.find('td', class_='calendar__cell calendar__event')
                 event_name = event_cell.text.strip() if event_cell else ''
                 
-                # Get impact level
+                # Extract impact level
                 impact_cell = row.find('td', class_='calendar__cell calendar__impact')
                 impact = ""
                 if impact_cell:
                     # Extract the impact span element - this contains the impact indicator
-                    # It should have a title attribute like "High Impact Expected"
                     impact_span = impact_cell.find('span', class_=lambda c: c and ('icon--ff-impact' in c or 'universal-impact' in c))
                     
                     if not impact_span:
@@ -253,7 +208,7 @@ def _extract_calendar_events(response_text):
                         if impact:
                             impact = impact.capitalize()
                 
-                # Log the final impact for debugging
+                # Log the final impact
                 print(f"Final impact for '{event_name}': '{impact}'")
                 
                 # Get forecast value
@@ -264,16 +219,16 @@ def _extract_calendar_events(response_text):
                 previous_cell = row.find('td', class_='calendar__cell calendar__previous')
                 previous = previous_cell.text.strip() if previous_cell else ''
                 
-                # Save the event in our list
+                # Save the event in our list, using the original time and site's timezone
                 event_data = {
                     'date': current_date,
-                    'time': chicago_event_time,
+                    'time': event_time,  # Original time from ForexFactory
                     'currency': currency,
                     'event': event_name,
                     'impact': impact,
                     'forecast': forecast,
                     'previous': previous,
-                    'timezone': 'America/Chicago'
+                    'timezone': site_timezone  # Store site's timezone for reference
                 }
                 
                 events.append(event_data)

@@ -28,13 +28,13 @@ def save_market_calendar_event(event_data):
     Args:
         event_data (dict): Dictionary containing event details
             - date (str): Event date in YYYY-MM-DD format
-            - time (str): Event time (in Chicago timezone)
+            - time (str): Event time (original time from ForexFactory)
             - currency (str): Currency code (e.g., 'USD')
             - event (str): Event name/description
             - impact (str): Impact level (high, medium, low)
             - forecast (str): Forecast value
             - previous (str): Previous value
-            - timezone (str): Timezone for the event times (should be 'America/Chicago')
+            - timezone (str): The timezone of the source website
             
     Returns:
         row: The newly created or updated table row
