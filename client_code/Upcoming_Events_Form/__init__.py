@@ -119,7 +119,7 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
         self.update_high_impact_countdown()
         # If still no event after refresh, show message
         if not self.next_high_impact_event:
-          self.rich_text_high_impact_event_countdown.content = "No upcoming high impact events found."
+          self.rich_text_high_impact_event_countdown.content = "Next High Impact Event\n\nNo upcoming high impact events found."
       except Exception as e:
         print(f"Error refreshing countdown: {e}")
       return
@@ -131,10 +131,12 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
       # Parse event datetime
       event_date_str = self.next_high_impact_event.get('date', '')
       event_time_str = self.next_high_impact_event.get('time', '')
+      event_name = self.next_high_impact_event.get('event', 'Unknown event')
       
       if not event_date_str or not event_time_str:
         self.rich_text_high_impact_event_countdown.content = (
-          f"Next high impact event: {self.next_high_impact_event.get('event', 'Unknown event')}\n"
+          f"Next High Impact Event\n\n"
+          f"{event_name}\n"
           f"(Missing date or time information)"
         )
         return
@@ -150,8 +152,8 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
         except ValueError:
           # If all parsing fails, show error message
           self.rich_text_high_impact_event_countdown.content = (
-            f"Next high impact event: {self.next_high_impact_event.get('event', 'Unknown event')} "
-            f"on {event_date_str} at {event_time_str}\n"
+            f"Next High Impact Event\n\n"
+            f"{event_name} on {event_date_str} at {event_time_str}\n"
             f"(Unable to calculate countdown)"
           )
           return
@@ -162,8 +164,8 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
       # Check if event is in the past
       if time_diff.total_seconds() <= 0:
         self.rich_text_high_impact_event_countdown.content = (
-          f"{self.next_high_impact_event.get('event', 'Event')} at "
-          f"{event_time_str} has already occurred.\n"
+          f"Next High Impact Event\n\n"
+          f"{event_name} at {event_time_str} has already occurred.\n"
           f"Please refresh to see the next upcoming high impact event."
         )
         # Update the next event (this will refresh at most once a minute to avoid server spam)
@@ -171,7 +173,7 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
           self.update_high_impact_countdown()
         return
       
-      # Calculate hours, minutes and seconds
+      # Calculate days, hours, minutes and seconds
       total_seconds = int(time_diff.total_seconds())
       days = total_seconds // 86400
       hours = (total_seconds % 86400) // 3600
@@ -180,24 +182,47 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
       
       # Format countdown string
       if days > 0:
-        countdown_text = f"{days} days, {hours} hours, {minutes} minutes, and {seconds} seconds"
+        countdown_text = f"{days}d {hours}h {minutes}m {seconds}s"
       elif hours > 0:
-        countdown_text = f"{hours} hours, {minutes} minutes, and {seconds} seconds"
+        countdown_text = f"{hours}h {minutes}m {seconds}s"
       elif minutes > 0:
-        countdown_text = f"{minutes} minutes and {seconds} seconds"
+        countdown_text = f"{minutes}m {seconds}s"
       else:
-        countdown_text = f"{seconds} seconds"
+        countdown_text = f"{seconds}s"
       
-      # Update the rich text content
-      event_name = self.next_high_impact_event.get('event', 'Unknown event')
+      # Format the event day in a user-friendly way
+      event_date = datetime.datetime.strptime(event_date_str, "%Y-%m-%d").date()
+      today = now.date()
+      tomorrow = today + datetime.timedelta(days=1)
+      
+      if event_date == today:
+        friendly_day = "Today"
+      elif event_date == tomorrow:
+        friendly_day = "Tomorrow"
+      else:
+        # Get the day of week
+        day_of_week = event_date.strftime("%A")
+        
+        # Calculate days difference
+        days_diff = (event_date - today).days
+        
+        if days_diff < 7:
+          friendly_day = f"This {day_of_week}"
+        elif days_diff < 14:
+          friendly_day = f"Next {day_of_week}"
+        else:
+          # For dates further away, use the month and day
+          friendly_day = event_date.strftime("%B %d")
+      
+      # Update the rich text content with the new format
       self.rich_text_high_impact_event_countdown.content = (
-        f"There are {countdown_text} until\n"
-        f"{event_name} at {event_time_str},\n"
-        f"the next upcoming high impact market event."
+        f"Next High Impact Event\n\n"
+        f"{countdown_text}\n\n"
+        f"{event_name} on {friendly_day} at {event_time_str}"
       )
     except Exception as e:
       print(f"Error updating countdown: {type(e).__name__} - {str(e)}")
-      self.rich_text_high_impact_event_countdown.content = f"Error updating countdown: {type(e).__name__}"
+      self.rich_text_high_impact_event_countdown.content = f"Next High Impact Event\n\nError updating countdown: {type(e).__name__}"
   
   def refresh_events(self):
     """Refresh the events grid based on selected filters"""
