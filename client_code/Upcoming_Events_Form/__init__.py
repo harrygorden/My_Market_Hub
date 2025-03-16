@@ -160,24 +160,24 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
           )
           return
     
-      # Convert the event_time_str to Eastern Time for display
+      # Convert UTC to Eastern Time using server-side function
       try:
-        # Import pytz for timezone conversion
-        import pytz
+        # Format the UTC datetime for the server call
+        utc_dt_str = f"{event_date_str} {event_time_str}"
         
-        # Parse the event time (in UTC)
-        event_datetime_utc = event_datetime.replace(tzinfo=pytz.UTC)
+        # Call server to convert time
+        eastern_time_info = anvil.server.call('convert_utc_to_eastern', utc_dt_str)
         
-        # Convert to Eastern Time
-        eastern_tz = pytz.timezone("America/New_York")
-        event_datetime_eastern = event_datetime_utc.astimezone(eastern_tz)
-        
-        # Format the time for display
-        eastern_time_str = event_datetime_eastern.strftime("%I:%M %p")
+        # Extract Eastern time
+        if eastern_time_info and 'eastern_time' in eastern_time_info and eastern_time_info['eastern_time']:
+          eastern_time_str = eastern_time_info['eastern_time']
+        else:
+          # Fallback to original time if conversion fails
+          eastern_time_str = event_time_str
+          print(f"Eastern time conversion failed: {eastern_time_info.get('error', 'Unknown error')}")
       except Exception as e:
-        print(f"Error converting time to Eastern: {str(e)}")
-        # Fallback to original time string if conversion fails
         eastern_time_str = event_time_str
+        print(f"Error converting to Eastern time: {str(e)}")
     
       # Calculate time difference
       time_diff = event_datetime - now

@@ -649,6 +649,72 @@ def get_next_high_impact_event(target_timezone="UTC"):
         return None
 
 @anvil.server.callable
+def convert_utc_to_eastern(utc_datetime_str, utc_format=None):
+    """
+    Convert a datetime string from UTC to Eastern Time
+    
+    Args:
+        utc_datetime_str (str): UTC datetime string in format 'YYYY-MM-DD HH:MM AM/PM' or 'YYYY-MM-DD HH:MM'
+        utc_format (str, optional): Format of the input datetime string. If None, will try common formats.
+    
+    Returns:
+        dict: Dictionary with eastern_time, eastern_date and full_eastern_datetime
+    """
+    import datetime
+    import pytz
+    
+    try:
+        # Parse the UTC datetime string - try different formats if specific format not provided
+        if utc_format:
+            # Use the provided format
+            utc_dt = datetime.datetime.strptime(utc_datetime_str, utc_format)
+        else:
+            # Try common formats
+            try:
+                # Try 12-hour format first (8:30 AM)
+                utc_dt = datetime.datetime.strptime(utc_datetime_str, "%Y-%m-%d %I:%M %p")
+            except ValueError:
+                try:
+                    # Try 24-hour format (08:30)
+                    utc_dt = datetime.datetime.strptime(utc_datetime_str, "%Y-%m-%d %H:%M")
+                except ValueError:
+                    # Return error if can't parse
+                    return {
+                        'eastern_time': None,
+                        'eastern_date': None,
+                        'full_eastern_datetime': None,
+                        'error': f"Could not parse datetime: {utc_datetime_str}"
+                    }
+        
+        # Make it timezone aware (UTC)
+        utc_dt = pytz.UTC.localize(utc_dt)
+        
+        # Convert to Eastern Time
+        eastern = pytz.timezone('America/New_York')
+        eastern_dt = utc_dt.astimezone(eastern)
+        
+        # Format the time components
+        eastern_time = eastern_dt.strftime("%I:%M %p").lstrip("0").replace(" 0", " ")  # Remove leading zeros
+        eastern_date = eastern_dt.strftime("%Y-%m-%d")
+        full_eastern_datetime = eastern_dt.strftime("%Y-%m-%d %I:%M %p").lstrip("0").replace(" 0", " ")
+        
+        print(f"Converted {utc_datetime_str} (UTC) to {eastern_time} (Eastern)")
+        
+        return {
+            'eastern_time': eastern_time,
+            'eastern_date': eastern_date,
+            'full_eastern_datetime': full_eastern_datetime,
+        }
+    except Exception as e:
+        print(f"Error converting UTC to Eastern: {str(e)}")
+        return {
+            'eastern_time': None,
+            'eastern_date': None,
+            'full_eastern_datetime': None,
+            'error': str(e)
+        }
+
+@anvil.server.callable
 def debug_market_calendar_table():
     """Debug function to check the market calendar table structure and permissions"""
     try:
