@@ -34,12 +34,16 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     # Get the date range based on selection
     start_date, end_date = self.get_date_range()
     
+    # Convert dates to string format for passing to server
+    start_date_str = start_date.strftime('%Y-%m-%d')
+    end_date_str = end_date.strftime('%Y-%m-%d')
+    
     # Get events from server with timezone conversion
     selected_timezone = self.drop_down_time_zone.selected_value
     events = anvil.server.call('get_market_calendar_events_with_timezone', 
-                               start_date, 
-                               end_date, 
-                               selected_timezone)
+                              start_date_str, 
+                              end_date_str, 
+                              selected_timezone)
     
     # Set the data source for the grid
     self.data_grid_market_events.items = events

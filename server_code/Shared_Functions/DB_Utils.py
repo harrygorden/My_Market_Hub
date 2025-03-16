@@ -350,6 +350,21 @@ def get_market_calendar_events_with_timezone(start_date, end_date, target_timezo
     try:
         import pytz
         
+        # Debugging the incoming parameters
+        print(f"Type of start_date: {type(start_date)}")
+        print(f"Value of start_date: {start_date}")
+        print(f"Type of end_date: {type(end_date)}")
+        print(f"Value of end_date: {end_date}")
+        print(f"Target timezone: {target_timezone}")
+        
+        # Ensure dates are datetime.date objects
+        # If they're strings (ISO format), convert them
+        if isinstance(start_date, str):
+            start_date = datetime.datetime.strptime(start_date, '%Y-%m-%d').date()
+        
+        if isinstance(end_date, str):
+            end_date = datetime.datetime.strptime(end_date, '%Y-%m-%d').date()
+        
         # Define timezone mappings
         timezone_map = {
             "Eastern": "US/Eastern",
@@ -411,7 +426,7 @@ def get_market_calendar_events_with_timezone(start_date, end_date, target_timezo
                     event['time'] = local_dt.strftime('%I:%M %p')
                     
                 except Exception as e:
-                    print(f"Error converting time: {e}")
+                    print(f"Error converting specific time: {e}")
             
             event_list.append(event)
             
@@ -419,4 +434,6 @@ def get_market_calendar_events_with_timezone(start_date, end_date, target_timezo
         
     except Exception as e:
         print(f"Error retrieving market calendar events with timezone conversion: {e}")
+        import traceback
+        print(traceback.format_exc())
         return []
