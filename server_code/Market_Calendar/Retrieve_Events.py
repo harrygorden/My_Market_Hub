@@ -35,7 +35,18 @@ def _get_response_text(url, verbose=VERBOSE_LOGGING):
         if verbose:
             print("Successfully retrieved calendar page")
         
-        return response
+        # Ensure we're returning a string/text rather than a response object
+        if hasattr(response, 'get_bytes'):
+            # If it's a streaming response, get the bytes and decode
+            return response.get_bytes().decode('utf-8')
+        elif isinstance(response, (str, bytes)):
+            # If it's already a string or bytes, handle appropriately
+            if isinstance(response, bytes):
+                return response.decode('utf-8')
+            return response
+        else:
+            # For other response types, convert to string
+            return str(response)
     except Exception as e:
         print(f"Error fetching URL {url}: {str(e)}")
         return ""
