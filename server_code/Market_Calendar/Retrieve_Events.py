@@ -554,6 +554,97 @@ def fetch_next_month_events(verbose=VERBOSE_LOGGING):
     
     return _fetch_and_save_events(url, verbose)
 
+# Background task wrappers for scheduled execution
+@anvil.server.callable
+@anvil.server.background_task
+def bg_fetch_tomorrow_events(verbose=VERBOSE_LOGGING):
+    """
+    Background task wrapper for fetch_tomorrow_events.
+    Allows scheduling the task to run at specified times.
+    
+    Args:
+        verbose: Whether to print detailed logs
+    
+    Returns:
+        dict: Statistics about processed events
+    """
+    print("Starting background task: fetch_tomorrow_events")
+    result = fetch_tomorrow_events(verbose=verbose)
+    print("Completed background task: fetch_tomorrow_events")
+    return result
+
+@anvil.server.callable
+@anvil.server.background_task
+def bg_fetch_this_week_events(verbose=VERBOSE_LOGGING):
+    """
+    Background task wrapper for fetch_this_week_events.
+    Allows scheduling the task to run at specified times.
+    
+    Args:
+        verbose: Whether to print detailed logs
+    
+    Returns:
+        dict: Statistics about processed events
+    """
+    print("Starting background task: fetch_this_week_events")
+    result = fetch_this_week_events(verbose=verbose)
+    print("Completed background task: fetch_this_week_events")
+    return result
+
+@anvil.server.callable
+@anvil.server.background_task
+def bg_fetch_next_week_events(verbose=VERBOSE_LOGGING):
+    """
+    Background task wrapper for fetch_next_week_events.
+    Allows scheduling the task to run at specified times.
+    
+    Args:
+        verbose: Whether to print detailed logs
+    
+    Returns:
+        dict: Statistics about processed events
+    """
+    print("Starting background task: fetch_next_week_events")
+    result = fetch_next_week_events(verbose=verbose)
+    print("Completed background task: fetch_next_week_events")
+    return result
+
+@anvil.server.callable
+@anvil.server.background_task
+def bg_fetch_this_month_events(verbose=VERBOSE_LOGGING):
+    """
+    Background task wrapper for fetch_this_month_events.
+    Allows scheduling the task to run at specified times.
+    
+    Args:
+        verbose: Whether to print detailed logs
+    
+    Returns:
+        dict: Statistics about processed events
+    """
+    print("Starting background task: fetch_this_month_events")
+    result = fetch_this_month_events(verbose=verbose)
+    print("Completed background task: fetch_this_month_events")
+    return result
+
+@anvil.server.callable
+@anvil.server.background_task
+def bg_fetch_next_month_events(verbose=VERBOSE_LOGGING):
+    """
+    Background task wrapper for fetch_next_month_events.
+    Allows scheduling the task to run at specified times.
+    
+    Args:
+        verbose: Whether to print detailed logs
+    
+    Returns:
+        dict: Statistics about processed events
+    """
+    print("Starting background task: fetch_next_month_events")
+    result = fetch_next_month_events(verbose=verbose)
+    print("Completed background task: fetch_next_month_events")
+    return result
+
 @anvil.server.callable
 @anvil.server.background_task
 def refresh_all_calendars(verbose=False):
