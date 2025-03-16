@@ -1,0 +1,87 @@
+# Windsurf IDE Rules File for Anvil.works Project
+
+[project]
+framework = Anvil
+entry_point = main.py
+
+[server_code]
+path = server_code/
+description = Server-side packages containing core logic, database operations, and shared functions
+
+[server_code.Shared_Functions]
+description = Contains utility modules shared across multiple server packages
+modules = [
+    "DB_Utils.py",
+    "Retrieve_Emails.py"
+]
+
+[server_code.ES_Analysis]
+description = Handles parsing emails related to ES market analysis and storage operations
+modules = [
+    "Parse_ES_Emails.py"
+]
+dependencies = [
+    "Shared_Functions.DB_Utils",
+    "Shared_Functions.Retrieve_Emails"
+]
+
+[server_code.Flow_Analysis]
+description = Processes and stores flow-related email data
+modules = [
+    "Parse_Flow_Emails.py"
+]
+dependencies = [
+    "Shared_Functions.DB_Utils",
+    "Shared_Functions.Retrieve_Emails"
+]
+
+[server_code.Market_Calendar]
+description = Scrapes and manages market event calendars
+modules = [
+    "Scrape_Market_Calendar.py"
+]
+dependencies = [
+    "Shared_Functions.DB_Utils"
+]
+
+[server_code.Whale_Watching]
+description = Monitors options open interest (OI) for significant trades
+modules = [
+    "Monitor_Whale_Positions.py"
+]
+dependencies = [
+    "Shared_Functions.DB_Utils"
+]
+
+[client_code]
+path = client_code/
+description = Client-side forms for the Anvil application
+forms = [
+    "Navigation",
+    "Home_Form",
+    "ES_Analysis_Form",
+    "Flow_Analysis_Form",
+    "Upcoming_Events_Form",
+    "Whale_Watching_Form"
+]
+
+[client_code.Navigation]
+description = Base navigation layout with content_slot
+content_slot = true
+children = [
+    "Home_Form",
+    "ES_Analysis_Form",
+    "Flow_Analysis_Form",
+    "Upcoming_Events_Form",
+    "Whale_Watching_Form"
+]
+
+[file_roles]
+main.py = entry_point
+Shared_Functions/DB_Utils.py = database_operations
+Shared_Functions/Retrieve_Emails.py = email_operations
+
+[naming_conventions]
+server_packages = Snake_Case
+client_forms = Pascal_Case
+shared_modules = Snake_Case
