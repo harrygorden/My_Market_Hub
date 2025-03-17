@@ -6,12 +6,7 @@ components:
     type: RichText
   - layout_properties: {grid_position: 'GBSJUM,DYJPZY'}
     name: rich_text_2
-    properties:
-      content: |-
-        This tool is intended for use by, well, me.  So don't feel bad if you're not seeing fundamental aspects of this page.  Just be me and you won't have this problem.
-
-        Until then, have a good day!
-      font_size: 20
+    properties: {content: 'This tool is intended to bring together all the things I monitor for my trading.  For now, it''s available to everyone with the link, though if you somehow stumble onto this page, be aware that things will be dissapearing soon.', font_size: 20}
     type: RichText
   layout_properties: {full_width_row: false, grid_position: 'BUKIIE,CNIBMO'}
   name: outlined_card_1
