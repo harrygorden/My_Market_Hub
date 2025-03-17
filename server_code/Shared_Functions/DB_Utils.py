@@ -318,7 +318,7 @@ def get_market_calendar_events_by_impact(impact_level, start_date=None, end_date
         event_list = []
         for event in events:
             event_dict = {
-                'date': event['date'].strftime('%Y-%m-%d'),
+                'date': event['date'].strftime("%Y-%m-%d"),
                 'time': event['time'],
                 'event': event['event'],
                 'currency': event['currency'],
@@ -408,7 +408,7 @@ def get_market_calendar_events_with_timezone(start_date, end_date, target_timezo
             # Debug all columns in the first row
             for key in row:
                 try:
-                    print(f"  {key}: {row[key]}")
+                    print(f"  {key}: {row[key]}, Type: {type(row[key])}")
                 except:
                     print(f"  {key}: <error accessing value>")
         
@@ -747,50 +747,6 @@ def convert_utc_to_eastern(utc_datetime_str, utc_format=None):
             'full_eastern_datetime': None,
             'error': str(e)
         }
-
-@anvil.server.callable
-def debug_market_calendar_table():
-    """Debug function to check the market calendar table structure and permissions"""
-    try:
-        print("Attempting to access marketcalendar table...")
-        rows = app_tables.marketcalendar.search()
-        count = len(rows)
-        print(f"Successfully counted {count} rows in marketcalendar table")
-        
-        # Check a sample row
-        if count > 0:
-            sample_row = rows[0]
-            print("Warning: More than one row matched the query; returning the first row as sample.")
-            
-            try:
-                # Print all column names and values for debugging
-                print("Sample row details:")
-                for key in sample_row:
-                    print(f"Column: {key}, Value: {sample_row[key]}, Type: {type(sample_row[key])}")
-                
-                # Check if forecast and previous exist in the row
-                print(f"Has 'forecast' column: {'forecast' in sample_row}")
-                print(f"Has 'previous' column: {'previous' in sample_row}")
-                
-                if 'forecast' in sample_row:
-                    print(f"Forecast value: {sample_row['forecast']}")
-                if 'previous' in sample_row:
-                    print(f"Previous value: {sample_row['previous']}")
-            except Exception as e:
-                print(f"Error getting sample row: {str(e)}")
-        
-        # Get table schema
-        schema = []
-        for col in app_tables.marketcalendar.list_columns():
-            schema.append({
-                'name': col.name,
-                'type': col.type
-            })
-        print(f"Table schema: {schema}")
-        
-        return "Debugging completed - check server logs"
-    except Exception as e:
-        return f"Error debugging: {str(e)}"
 
 @anvil.server.callable
 def populate_sample_market_events():

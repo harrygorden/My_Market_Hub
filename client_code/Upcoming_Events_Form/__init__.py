@@ -40,11 +40,6 @@ class Upcoming_Events_Form(Upcoming_Events_FormTemplate):
     self.drop_down_time_zone.items = timezones
     self.drop_down_time_zone.selected_value = 'Eastern'
     
-    # Debug the database
-    print("Debugging the market calendar table...")
-    debug_result = anvil.server.call('debug_market_calendar_table')
-    print(f"Debug result: {debug_result}")
-    
     # Try to populate sample data if needed
     print("Checking if we need to populate sample data...")
     sample_result = anvil.server.call('populate_sample_market_events')

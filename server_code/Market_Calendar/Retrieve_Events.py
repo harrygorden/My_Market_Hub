@@ -774,27 +774,109 @@ def refresh_all_calendars(verbose=False):
     return combined_stats
 
 @anvil.server.callable
-def retrieve_market_calendar_events():
-    """Legacy function - redirects to refresh_all_calendars"""
-    print("Legacy function retrieve_market_calendar_events called - using refresh_all_calendars instead")
-    return refresh_all_calendars()
+@anvil.server.background_task
+def bg_fetch_tomorrow_events(verbose=False):
+    """
+    Background task wrapper for fetch_tomorrow_events.
+    Allows scheduling the task to run at specified times.
+    
+    Args:
+        verbose: Whether to print detailed logs (defaults to False for background tasks)
+    
+    Returns:
+        dict: Statistics about processed events
+    """
+    if verbose:
+        print("============================================")
+        print("Starting background task: Fetching tomorrow's economic calendar events")
+        print("============================================")
+    
+    try:
+        result = fetch_tomorrow_events(verbose)
+        if verbose:
+            print("Background task completed successfully")
+        return result
+    except Exception as e:
+        print(f"Error in background task: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
+        return {"error": str(e)}
 
 @anvil.server.callable
-def retrieve_market_calendar_events_this_month():
-    """Legacy function - redirects to fetch_this_month_events"""
-    print("Legacy function retrieve_market_calendar_events_this_month called - using fetch_this_month_events instead")
-    return fetch_this_month_events()
-
-@anvil.server.callable
-def retrieve_market_calendar_events_next_month():
-    """Legacy function - redirects to fetch_next_month_events"""
-    print("Legacy function retrieve_market_calendar_events_next_month called - using fetch_next_month_events instead")
-    return fetch_next_month_events()
+def refresh_all_calendars(verbose=False):
+    """
+    Refresh all calendar periods (today, tomorrow, this week, next week, this month, next month)
+    with condensed logging output that only shows the final statistics.
+    
+    Args:
+        verbose: Whether to print detailed logs (defaults to False for background tasks)
+    
+    Returns:
+        dict: Combined statistics for all time ranges
+    """
+    if verbose:
+        print("================================================")
+        print("Starting full calendar refresh for all time periods")
+        print("================================================")
+    
+    # Keep track of overall statistics
+    overall_stats = {
+        "total": 0,
+        "existing": 0,
+        "new": 0,
+        "errors": 0,
+        "ranges_processed": 0
+    }
+    
+    # Define all the fetch functions to call
+    fetch_functions = [
+        fetch_today_events,
+        fetch_tomorrow_events,
+        fetch_this_week_events,
+        fetch_next_week_events,
+        fetch_this_month_events,
+        fetch_next_month_events
+    ]
+    
+    # Call each function with minimal logging
+    for fetch_func in fetch_functions:
+        try:
+            if verbose:
+                print(f"Calling {fetch_func.__name__}...")
+            
+            # Set verbose=False to minimize logging for each individual call
+            result = fetch_func(verbose=False)
+            
+            if isinstance(result, dict) and "total" in result:
+                overall_stats["total"] += result.get("total", 0)
+                overall_stats["existing"] += result.get("existing", 0)
+                overall_stats["new"] += result.get("new", 0)
+                overall_stats["ranges_processed"] += 1
+                
+                if verbose:
+                    print(f"  {fetch_func.__name__}: Processed {result.get('total', 0)} events")
+            else:
+                if verbose:
+                    print(f"  {fetch_func.__name__}: Invalid result format")
+                overall_stats["errors"] += 1
+                
+        except Exception as e:
+            if verbose:
+                print(f"Error in {fetch_func.__name__}: {str(e)}")
+            overall_stats["errors"] += 1
+    
+    if verbose:
+        print("\nCalendar refresh complete!")
+        print(f"Processed {overall_stats['ranges_processed']} time ranges")
+        print(f"Total events: {overall_stats['total']}")
+        print(f"Existing events: {overall_stats['existing']}")
+        print(f"New events: {overall_stats['new']}")
+        print(f"Errors: {overall_stats['errors']}")
+        print("================================================")
+    
+    return overall_stats
 
 # You can test these functions using the uplink with:
 # anvil.server.call('fetch_tomorrow_events')
 # anvil.server.call('fetch_this_week_events')
 # anvil.server.call('fetch_next_week_events')
-# anvil.server.call('fetch_this_month_events')
-# anvil.server.call('fetch_next_month_events')
-# anvil.server.call('refresh_all_calendars')
